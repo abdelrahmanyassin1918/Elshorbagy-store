@@ -5,7 +5,7 @@ import {
   FaLock, FaCheckCircle, FaTrash, FaEdit, FaPlus, FaSlidersH, 
   FaBoxOpen, FaClipboardList, FaSignOutAlt, FaTimesCircle,
   FaCubes, FaMoneyBillWave, FaChartLine, FaDollyFlatbed, FaSearch,
-  FaPrint, FaWhatsapp, FaEye, FaPhone, FaBarcode
+  FaPrint, FaWhatsapp, FaEye, FaEyeSlash, FaPhone, FaBarcode
 } from 'react-icons/fa';
 
 interface AdminViewProps {
@@ -34,11 +34,12 @@ export default function AdminView({
   });
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [isLoginSubmitting, setIsLoginSubmitting] = useState(false);
 
-  // Tab State: 'products' | 'orders' | 'banner' | 'inventory' | 'users'
-  const [activeTab, setActiveTab] = useState<'products' | 'orders' | 'banner' | 'inventory' | 'users'>('products');
+  // Tab State: 'products' | 'orders' | 'banner' | 'inventory' | 'users' | 'qrcode'
+  const [activeTab, setActiveTab] = useState<'products' | 'orders' | 'banner' | 'inventory' | 'users' | 'qrcode'>('products');
 
   // Multi-user state
   const [adminDisplayName, setAdminDisplayName] = useState<string>(() => {
@@ -52,6 +53,24 @@ export default function AdminView({
 
   // State to filter and only show out of stock items
   const [onlyShowOutOfStock, setOnlyShowOutOfStock] = useState<boolean>(false);
+
+  // QR Code URL State (Defaults to Hugging Face production link)
+  const [qrCodeUrl, setQrCodeUrl] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('qr_code_custom_url');
+      if (saved && !saved.includes('localhost') && !saved.includes('127.0.0.1')) {
+        return saved;
+      }
+    }
+    return 'https://huggingface.co/spaces/abdelrahmanyassin/Elshorbagy-Store';
+  });
+
+  // Save QR Code URL to localStorage whenever it changes (ignore localhost)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && qrCodeUrl && !qrCodeUrl.includes('localhost') && !qrCodeUrl.includes('127.0.0.1')) {
+      localStorage.setItem('qr_code_custom_url', qrCodeUrl);
+    }
+  }, [qrCodeUrl]);
 
   // Notification API Permission State
   const [notificationPermission, setNotificationPermission] = useState<string>(() => {
@@ -913,20 +932,30 @@ ${itemsBrief}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="مثال: admin"
-              className="w-full px-4 py-3 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-[#00bf63]/40 focus:border-[#00bf63] text-left uppercase font-bold"
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-[#00bf63]/40 focus:border-[#00bf63] text-left font-bold"
             />
           </div>
 
           <div>
             <label className="block text-xs font-extrabold text-gray-600 mb-1">كلمة المرور السرية</label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="إدخال رمز المرور"
-              className="w-full px-4 py-3 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-[#00bf63]/40 focus:border-[#00bf63] text-left font-bold"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="إدخال رمز المرور"
+                className="w-full pl-11 pr-4 py-3 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-[#00bf63]/40 focus:border-[#00bf63] text-left font-bold"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none transition-colors"
+                title={showPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
+              >
+                {showPassword ? <FaEyeSlash className="text-sm" /> : <FaEye className="text-sm" />}
+              </button>
+            </div>
             <p className="text-[10px] text-gray-400 font-semibold mt-1">الرمز الافتراضي: 123</p>
           </div>
 
@@ -1138,6 +1167,16 @@ ${itemsBrief}
         >
           <FaLock className="text-blue-500" />
           <span>إعدادات المشرفين والمستخدمين 👥</span>
+        </button>
+
+        <button
+          onClick={() => { setActiveTab('qrcode'); }}
+          className={`px-5 py-3 text-xs md:text-sm font-black border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+            activeTab === 'qrcode' ? 'border-[#00bf63] text-[#00bf63]' : 'border-transparent text-gray-400 hover:text-gray-600'
+          }`}
+        >
+          <span className="text-base">📱</span>
+          <span>رمز الـ QR ومشاركة المتجر</span>
         </button>
       </div>
 
@@ -2365,6 +2404,113 @@ ${itemsBrief}
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/**************** TAB: QR CODE & SHARE *****************/}
+      {activeTab === 'qrcode' && (
+        <div className="bg-white border border-gray-150 rounded-3xl p-6 md:p-8 shadow-sm space-y-6">
+          <div className="text-center max-w-2xl mx-auto space-y-4">
+            <span className="text-4xl block">📱</span>
+            <h3 className="text-2xl font-black text-gray-800">رمز استجابة سريع (QR Code) للمتجر</h3>
+            <p className="text-xs sm:text-sm text-gray-500 font-bold leading-relaxed">
+              قم بإنشاء كود الـ QR الخاص بمتجرك لتتمكن من تحميله كصورة، طباعته، وتعليقه في المحل أو مشاركته مع العملاء ليدخلوا إلى المتجر مباشرة بهواتفهم.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center max-w-4xl mx-auto">
+            {/* Left Column: QR Code Display Card */}
+            <div className="bg-gray-50 border border-gray-200 rounded-3xl p-6 flex flex-col items-center justify-center text-center space-y-4 shadow-inner">
+              <div className="bg-white p-4 rounded-2xl border border-gray-150 shadow-sm">
+                <img 
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrCodeUrl)}`} 
+                  alt="QR Code" 
+                  className="w-48 h-48 sm:w-56 sm:h-56 mx-auto object-contain"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+              <div>
+                <h4 className="text-base font-extrabold text-gray-800">الشوربجي للمنظفات والورقيات ✨</h4>
+                <p className="text-[11px] text-gray-400 font-bold mt-1 select-all break-all" dir="ltr">
+                  {qrCodeUrl}
+                </p>
+              </div>
+
+              {qrCodeUrl.includes('localhost') && (
+                <div className="bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-bold p-3 rounded-xl w-full text-right leading-relaxed">
+                  ⚠️ انتبه: الرابط الحالي يحتوي على (localhost) وهو يعمل فقط على جهاز الكمبيوتر الداخلي ولا يمكن للعملاء فتحه بهواتفهم. يُفضل استخدام رابط الهجينج فيس أو رابط المتجر العام أدناه!
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row gap-2 w-full">
+                <a
+                  href={`https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(qrCodeUrl)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex-1 py-2.5 bg-[#00bf63] hover:bg-brand-green-dark text-white text-xs font-black rounded-xl transition-all shadow-sm text-center block cursor-pointer"
+                >
+                  تحميل كود QR بدقة عالية 📥
+                </a>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(qrCodeUrl);
+                    alert('تم نسخ رابط المتجر بنجاح! 📋');
+                  }}
+                  className="px-4 py-2.5 bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-black rounded-xl transition-all border border-gray-200 cursor-pointer"
+                >
+                  نسخ الرابط
+                </button>
+              </div>
+            </div>
+
+            {/* Right Column: Information & Marketing Guidelines */}
+            <div className="space-y-4">
+              <div className="bg-green-50/50 border border-green-100 p-5 rounded-2xl space-y-2.5 text-right">
+                <h4 className="text-sm font-black text-green-800 flex items-center gap-1.5 justify-end">
+                  <span>💡 كيف تستفيد من رمز الـ QR؟</span>
+                </h4>
+                <ul className="text-xs text-green-700 font-bold space-y-2 leading-relaxed list-disc list-inside">
+                  <li><strong>اطبعه وعلقه في المحل:</strong> اطلب من زوار المحل مسحه لعرض المنتجات والأسعار بسهولة وهواتفهم معهم.</li>
+                  <li><strong>شاركه كصورة على واتساب:</strong> أرسل كود الـ QR لعملائك على واتساب أو انشره في مجموعاتك الخدمية.</li>
+                  <li><strong>توفير الجهد على العملاء:</strong> يغني العميل عن كتابة روابط طويلة، مسح واحد بكاميرا الموبايل وينقله للمتجر فوراً!</li>
+                </ul>
+              </div>
+
+              <div className="border border-gray-150 p-5 rounded-2xl space-y-3 text-right">
+                <h4 className="text-xs font-black text-gray-700">⚙️ الرابط المدمج في رمز الـ QR</h4>
+                <p className="text-[11px] text-gray-400 font-bold leading-relaxed">
+                  إذا كنت ترغب في تغيير الرابط المدمج في الكود لرابطك العام أو رابط مخصص، يمكنك كتابته أو اختياره مباشرة هنا وسيتم تحديثه فوراً:
+                </p>
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    value={qrCodeUrl}
+                    onChange={(e) => setQrCodeUrl(e.target.value)}
+                    placeholder="ضع الرابط الذي تريده هنا"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-xs text-left font-mono focus:ring-2 focus:ring-[#00bf63]/40"
+                    dir="ltr"
+                  />
+                  <div className="flex flex-wrap gap-2 pt-1 justify-end">
+                    <button
+                      onClick={() => setQrCodeUrl('https://huggingface.co/spaces/abdelrahmanyassin/Elshorbagy-Store')}
+                      className="px-2.5 py-1.5 bg-[#00bf63]/10 hover:bg-[#00bf63]/20 text-[#00bf63] text-[10px] font-black rounded-lg transition-colors border border-[#00bf63]/20 cursor-pointer"
+                    >
+                      إعادة تعيين للرابط العام (Hugging Face) 🌐
+                    </button>
+                    <button
+                      onClick={() => setQrCodeUrl(window.location.origin)}
+                      className="px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 text-[10px] font-black rounded-lg text-gray-600 transition-colors border border-gray-200 cursor-pointer"
+                    >
+                      رابط البيئة الحالي تلقائياً 🔄
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-gray-400 font-extrabold leading-normal mt-1">
+                    💡 نصيحة: تم ضبط الرابط افتراضياً ليكون رابط متجرك العام على Hugging Face لكي يعمل رمز الـ QR مباشرة من هواتف جميع العملاء في أي مكان!
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </div>

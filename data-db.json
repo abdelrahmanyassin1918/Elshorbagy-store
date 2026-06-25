@@ -1,0 +1,140 @@
+{
+  "products": [
+    {
+      "id": "persil-gel-3l",
+      "title": "برسيل جل للغسالات الأوتوماتيك بنسيم لافندر - 3 لتر + 1 لتر مجاناً",
+      "description": "برسيل جل بقوة التكنولوجيا الألمانية بديل المسحوق التقليدي، ينظف الملابس البيضاء والملونة بعمق ويترك رائحة اللافندر المنعشة تدوم طويلاً، مع توفير كامل وحماية تامة للغسالة من الترسبات.",
+      "price": 380,
+      "discountPrice": 320,
+      "discountPercentage": 16,
+      "image": "https://images.unsplash.com/photo-1628177142898-93e36e4e3a50?auto=format&fit=crop&q=80&w=800",
+      "images": [
+        "https://images.unsplash.com/photo-1628177142898-93e36e4e3a50?auto=format&fit=crop&q=80&w=800"
+      ],
+      "category": "powders_detergents",
+      "brand": "برسيل",
+      "rating": 4.8,
+      "reviewsCount": 142,
+      "featured": true,
+      "isSpecialOffer": false,
+      "specs": {
+        "الحجم": "3 لتر + 1 لتر إضافي",
+        "النوع": "منظف غسيل سائل (جل)",
+        "نوع الغسالة": "أوتوماتيك وفوق أوتوماتيك"
+      },
+      "stock": 45
+    },
+    {
+      "id": "ariel-powder-6kg",
+      "title": "أريال مسحوق غسيل بودرة للغسالات الأوتوماتيك - وزن 6 كيلو جرام",
+      "description": "أريال المسحوق الأول عالمياً في إزالة البقع الصعبة من غسلة واحدة لملابس ناصعة البياض بفضل حبيبات التنظيف النشطة والتركيبة الفعالة ضد أصعب الدهون والأوساخ مع حماية الأنسجة.",
+      "price": 490,
+      "discountPrice": 425,
+      "discountPercentage": 13,
+      "image": "https://images.unsplash.com/photo-1583947215259-38e31be8751f?auto=format&fit=crop&q=80&w=800",
+      "images": [
+        "https://images.unsplash.com/photo-1583947215259-38e31be8751f?auto=format&fit=crop&q=80&w=800"
+      ],
+      "category": "powders_detergents",
+      "brand": "أريال",
+      "rating": 4.7,
+      "reviewsCount": 96,
+      "featured": true,
+      "isSpecialOffer": false,
+      "specs": {
+        "الوزن": "6 كيلو جرام",
+        "النوع": "مسحوق غسيل بودرة",
+        "الاستخدام": "غسالات أوتوماتيك"
+      },
+      "stock": 30
+    },
+    {
+      "id": "dettol-soap-4pack",
+      "title": "صابون ديتول الأصلي مضاد للبكتيريا والجراثيم - عرض 4 قطع × 120 جرام",
+      "description": "صابون ديتول الأصلي لغسيل اليدين والجسم بتركيبة معقمة ذات فعالية مطلقة تقضي على 99.9% من الجراثيم والبكتيريا، مع الحفاظ على ترطيب البشرة وحيويتها الطبيعية يومياً.",
+      "price": 135,
+      "discountPrice": 99,
+      "discountPercentage": 27,
+      "image": "https://images.unsplash.com/photo-1607006342411-9a336f168f19?auto=format&fit=crop&q=80&w=800",
+      "images": [
+        "https://images.unsplash.com/photo-1607006342411-9a336f168f19?auto=format&fit=crop&q=80&w=800"
+      ],
+      "category": "soap_liquid",
+      "brand": "ديتول",
+      "rating": 4.9,
+      "reviewsCount": 215,
+      "featured": true,
+      "isSpecialOffer": true,
+      "specs": {
+        "العدد": "4 صابونات في العبوة",
+        "الوزن للقطعة": "120 جرام",
+        "النوع": "صابون صلب مطهر"
+      },
+      "stock": 80
+    },
+    {
+      "id": "pril-dishwash-1l",
+      "title": "بريل سائل غسيل الأطباق الفائق وقاهر الدهون بالليمون - 1 لتر",
+      "description": "بريل الأصلي بقوة خمس طبقات لمعان لإزالة الأوساخ المستعصية والدهون الجافة من الصحون والحلل دون بذل مجهود شاق، آمن تماماً على اليدين ويمنح المطبخ رائحة ليمون برّاقة ونظافة لا تضاهى.",
+      "price": 60,
+      "discountPrice": 48,
+      "discountPercentage": 20,
+      "image": "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&q=80&w=800",
+      "images": [
+        "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&q=80&w=800"
+      ],
+      "category": "soap_liquid",
+      "brand": "بريل",
+      "rating": 4.6,
+      "reviewsCount": 88,
+      "featured": true,
+      "isSpecialOffer": false,
+      "specs": {
+        "الحجم": "1 لتر (1000 مل)",
+        "العطر": "ليمون مركز"
+      },
+      "stock": 120
+    },
+    {
+      "id": "fine-tissues-3pack",
+      "title": "مناديل فاين كلاسيك معقمة وفائقة النعومة - عبوة 550 منديل (عرض 3 علب)",
+      "description": "مناديل ورقية ناعمة جداً من فاين كلاسيك ثلاثية الطبقات لتأمين أعلى مستويات الامتصاص والمتانة مع الحفاظ على نعومة مذهلة ومريحة للبشرة الحساسة، معقمة بتقنية ستيريبرو لمنع انتقال الجراثيم.",
+      "price": 155,
+      "discountPrice": 125,
+      "discountPercentage": 19,
+      "image": "https://images.unsplash.com/photo-1584269600464-37b1b58a9fe7?auto=format&fit=crop&q=80&w=800",
+      "images": [
+        "https://images.unsplash.com/photo-1584269600464-37b1b58a9fe7?auto=format&fit=crop&q=80&w=800"
+      ],
+      "category": "paper_products",
+      "brand": "فاين",
+      "rating": 4.8,
+      "reviewsCount": 174,
+      "featured": true,
+      "isSpecialOffer": true,
+      "specs": {
+        "العدد في العلبة": "550 منديل سحب",
+        "العرض الكلي": "3 علب عائلية"
+      },
+      "stock": 65
+    }
+  ],
+  "banner": {
+    "badge": "🧼 النظافة والبريق في جيبك • أسعار جملة الجملة",
+    "title": "الشوربجي للمنظفات والورقيات في مصر",
+    "subtitle": "نوفر لكم أكبر تشكيلة من مساحيق الغسيل، مطهرات ديتول، صابون المواعين، والورقيات والمناديل المعقمة بأقصى توفير وأسرع خدمة شحن لباب بيتك!",
+    "image": "https://images.unsplash.com/photo-1628177142898-93e36e4e3a50?auto=format&fit=crop&q=80&w=1200"
+  },
+  "orders": [],
+  "adminSettings": {
+    "username": "admin",
+    "password": "123",
+    "users": [
+      {
+        "username": "admin",
+        "password": "123",
+        "name": "المدير العام"
+      }
+    ]
+  }
+}

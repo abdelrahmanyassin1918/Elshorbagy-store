@@ -11,12 +11,97 @@ import OrderSuccessView from './views/OrderSuccessView';
 import AdminView from './views/AdminView';
 import { Product, CartItem, OrderDetails } from './types';
 import { PRODUCTS, CATEGORIES } from './data';
-import { FaHeadset, FaPhoneAlt, FaMapMarkerAlt, FaEnvelope, FaFacebook, FaInstagram, FaTiktok, FaUnlockAlt } from 'react-icons/fa';
+import { FaHeadset, FaPhoneAlt, FaMapMarkerAlt, FaEnvelope, FaFacebook, FaInstagram, FaTiktok, FaUnlockAlt, FaEye, FaEyeSlash } from 'react-icons/fa';
 
 export default function App() {
   // Navigation Routing States
   const [currentView, setCurrentView] = useState<string>('home');
   const [activeProduct, setActiveProduct] = useState<Product | null>(null);
+
+  // User Role State: 'user' | 'owner' (default to 'user' unless logged in previously)
+  const [userRole, setUserRole] = useState<'user' | 'owner'>(() => {
+    if (typeof window !== 'undefined') {
+      const token = sessionStorage.getItem('kenzz_admin_token');
+      return token === 'validated_sess_token_secure' ? 'owner' : 'user';
+    }
+    return 'user';
+  });
+
+  // Entry gate status: true if they have chosen customer or logged in as owner
+  const [hasEntered, setHasEntered] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const token = sessionStorage.getItem('kenzz_admin_token');
+      if (token === 'validated_sess_token_secure') return true;
+      
+      const savedChoice = sessionStorage.getItem('kenzz_gate_entered');
+      return savedChoice === 'true';
+    }
+    return false;
+  });
+
+  // Modal Login States
+  const [showOwnerLoginModal, setShowOwnerLoginModal] = useState(false);
+  const [loginUsername, setLoginUsername] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginErrorMsg, setLoginErrorMsg] = useState('');
+  const [isSubmittingLogin, setIsSubmittingLogin] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Switching methods
+  const handleSwitchToUser = () => {
+    sessionStorage.removeItem('kenzz_admin_token');
+    sessionStorage.removeItem('kenzz_admin_user_name');
+    sessionStorage.removeItem('kenzz_gate_entered');
+    setUserRole('user');
+    setHasEntered(false);
+    handleNavigate('home');
+  };
+
+  const handleSwitchToOwner = () => {
+    if (userRole === 'owner') {
+      handleNavigate('admin');
+    } else {
+      setLoginErrorMsg('');
+      setLoginUsername('');
+      setLoginPassword('');
+      setShowOwnerLoginModal(true);
+    }
+  };
+
+  const handleOwnerLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginErrorMsg('');
+    setIsSubmittingLogin(true);
+
+    try {
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: loginUsername, password: loginPassword })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        sessionStorage.setItem('kenzz_admin_token', data.token);
+        const displayName = data.user?.name || data.user?.username || 'المدير';
+        sessionStorage.setItem('kenzz_admin_user_name', displayName);
+        sessionStorage.setItem('kenzz_gate_entered', 'true');
+        setUserRole('owner');
+        setHasEntered(true);
+        setShowOwnerLoginModal(false);
+        setLoginUsername('');
+        setLoginPassword('');
+        handleNavigate('admin');
+      } else {
+        const data = await res.json();
+        setLoginErrorMsg(data.error || 'اسم المستخدم أو كلمة المرور غير صحيحة');
+      }
+    } catch (err) {
+      setLoginErrorMsg('عذراً، حدث خطأ أثناء الاتصال بالخادم.');
+    } finally {
+      setIsSubmittingLogin(false);
+    }
+  };
   const [productsFilters, setProductsFilters] = useState<{
     category?: string;
     brand?: string;
@@ -123,6 +208,13 @@ export default function App() {
       console.error('Failed to persist cart updates to localStorage', e);
     }
   }, [cart]);
+
+  // Protect admin view - auto redirect if not owner
+  useEffect(() => {
+    if (currentView === 'admin' && userRole !== 'owner') {
+      setCurrentView('home');
+    }
+  }, [currentView, userRole]);
 
   // Handle direct navigation to target screen views and reset scroll state
   const handleNavigate = (view: string, params: any = {}) => {
@@ -258,6 +350,154 @@ export default function App() {
   // Condition to show floating bottom cart bar
   const showFloatingCartBar = cart.length > 0 && currentView !== 'cart' && currentView !== 'order-success';
 
+  if (!hasEntered) {
+    return (
+      <div className="min-h-screen bg-linear-to-b from-brand-purple/10 to-white flex items-center justify-center p-4 sm:p-6 md:p-8 font-sans text-right" dir="rtl">
+        {/* Portal card */}
+        <div className="w-full max-w-xl bg-white rounded-3xl border border-gray-150 shadow-2xl overflow-hidden animate-fade-in relative">
+          
+          {/* Logo header */}
+          <div className="bg-brand-purple text-white p-8 text-center relative select-none">
+            <div className="absolute inset-0 bg-radial from-transparent to-brand-purple-dark/40 opacity-40"></div>
+            <div className="relative z-10 flex flex-col items-center justify-center">
+              <div className="relative flex items-center justify-center w-20 h-20 rounded-2xl overflow-hidden border-2 border-white/60 shadow-md mb-4 animate-scale-up">
+                <img src="/icon.jpg" alt="الشوربجي" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              </div>
+              <h1 className="text-3xl font-black tracking-tight leading-tight mb-2">متجر الشوربجي</h1>
+              <p className="text-white/85 text-xs font-black">للمنظفات والورقيات والمواد الاستهلاكية 🛒</p>
+            </div>
+          </div>
+
+          <div className="p-6 sm:p-8 space-y-6">
+            {!showOwnerLoginModal ? (
+              <>
+                <div className="text-center">
+                  <h2 className="text-lg font-black text-gray-800 mb-2">مرحباً بك في المتجر الإلكتروني 👋</h2>
+                  <p className="text-[11px] text-gray-400 font-extrabold leading-normal">يرجى اختيار طريقة الدخول لبدء استخدام التطبيق وتصفح المنتجات أو إدارة متجرك.</p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Option 1: Customer */}
+                  <button
+                    onClick={() => {
+                      sessionStorage.setItem('kenzz_gate_entered', 'true');
+                      setHasEntered(true);
+                      setUserRole('user');
+                      handleNavigate('home');
+                    }}
+                    className="group p-6 bg-white border-2 border-brand-purple/15 hover:border-brand-purple rounded-2xl text-center transition-all duration-300 hover:shadow-xl cursor-pointer"
+                  >
+                    <div className="w-14 h-14 bg-brand-purple/10 text-brand-purple rounded-xl flex items-center justify-center text-2xl mx-auto mb-3 group-hover:scale-110 transition-transform">
+                      🛒
+                    </div>
+                    <h3 className="text-base font-black text-gray-800 mb-1">دخول كمستخدم</h3>
+                    <p className="text-[10px] text-gray-400 font-extrabold leading-normal">تصفح المنظفات، المساحيق، الورقيات، واطلب احتياجاتك مباشرة</p>
+                  </button>
+
+                  {/* Option 2: Owner */}
+                  <button
+                    onClick={() => {
+                      setLoginErrorMsg('');
+                      setLoginUsername('');
+                      setLoginPassword('');
+                      setShowOwnerLoginModal(true);
+                    }}
+                    className="group p-6 bg-white border-2 border-[#00bf63]/15 hover:border-[#00bf63] rounded-2xl text-center transition-all duration-300 hover:shadow-xl cursor-pointer"
+                  >
+                    <div className="w-14 h-14 bg-[#00bf63]/10 text-[#00bf63] rounded-xl flex items-center justify-center text-2xl mx-auto mb-3 group-hover:scale-110 transition-transform">
+                      👑
+                    </div>
+                    <h3 className="text-base font-black text-gray-800 mb-1">دخول كمالك المتجر</h3>
+                    <p className="text-[10px] text-gray-400 font-extrabold leading-normal">لوحة التحكم، تعديل الأسعار، زيادة المخزون ومتابعة الطلبات والأرباح</p>
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div>
+                <div className="text-center mb-6">
+                  <div className="w-14 h-14 bg-[#eafbf2] text-[#00bf63] rounded-2xl flex items-center justify-center text-xl mx-auto mb-3">
+                    <FaUnlockAlt />
+                  </div>
+                  <h3 className="text-lg font-black text-gray-800 mb-1">تسجيل دخول المالك 🔑</h3>
+                  <p className="text-[11px] text-gray-400 font-bold leading-normal">يرجى إدخال اسم المستخدم وكلمة المرور لتفعيل ميزات لوحة التحكم</p>
+                </div>
+
+                {loginErrorMsg && (
+                  <div className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-xs font-bold mb-4 text-center">
+                    {loginErrorMsg}
+                  </div>
+                )}
+
+                <form onSubmit={handleOwnerLoginSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-[11px] font-extrabold text-gray-600 mb-1 text-right">اسم المستخدم</label>
+                    <input
+                      type="text"
+                      required
+                      value={loginUsername}
+                      onChange={(e) => setLoginUsername(e.target.value)}
+                      placeholder="مثال: admin"
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-[#00bf63]/40 focus:border-[#00bf63] text-left font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-extrabold text-gray-600 mb-1 text-right">كلمة المرور</label>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        required
+                        value={loginPassword}
+                        onChange={(e) => setLoginPassword(e.target.value)}
+                        placeholder="إدخال كلمة المرور"
+                        className="w-full pr-10 pl-4 py-2.5 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-[#00bf63]/40 focus:border-[#00bf63] text-left font-bold"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none transition-colors cursor-pointer"
+                      >
+                        {showPassword ? <FaEyeSlash className="w-4 h-4 text-gray-500" /> : <FaEye className="w-4 h-4 text-gray-500" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowOwnerLoginModal(false);
+                        setLoginUsername('');
+                        setLoginPassword('');
+                        setLoginErrorMsg('');
+                      }}
+                      className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-black rounded-xl transition-colors cursor-pointer"
+                    >
+                      عودة للخلف
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSubmittingLogin}
+                      className="flex-1 py-2.5 bg-[#00bf63] hover:bg-[#00bf63]/90 text-white text-xs font-black rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      {isSubmittingLogin ? 'جاري التحقق...' : 'تأكيد الدخول 🔑'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+          </div>
+
+          {/* Footer branding */}
+          <div className="bg-gray-50 border-t border-gray-100 p-4 text-center">
+            <span className="text-[10px] text-gray-400 font-extrabold">إدارة المتجر وحقوق التطوير محفوظة © ٢٠٢٦</span>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-gray-50/50">
       
@@ -269,6 +509,9 @@ export default function App() {
         onNavigate={handleNavigate}
         onSearch={handleSearchSubmit}
         onOpenSidebar={() => setIsSidebarOpen(true)}
+        userRole={userRole}
+        onSwitchToUser={handleSwitchToUser}
+        onSwitchToOwner={handleSwitchToOwner}
       />
 
       {/* 2. Main content Stage */}
@@ -315,7 +558,7 @@ export default function App() {
           />
         )}
 
-        {currentView === 'admin' && (
+        {currentView === 'admin' && userRole === 'owner' && (
           <AdminView
             products={dynamicProducts}
             banner={dynamicBanner}
@@ -410,12 +653,23 @@ export default function App() {
                 <span className="font-mono">الهاتف: 01023456789 / 01112345678</span>
                 <span>المقر: شارع بشتيل، البراجيل، الجيزة، مصر</span>
               </div>
-              <button 
-                onClick={() => handleNavigate('admin')}
-                className="text-xs font-black text-[#00bf63] hover:text-[#00bf63]/80 hover:underline transition-all mt-2 flex items-center gap-1 cursor-pointer"
-              >
-                <span>دخول لوحة التحكم (المشرف) 🔐</span>
-              </button>
+              
+              {userRole === 'owner' && (
+                <div className="mt-2 flex flex-col items-start md:items-end gap-1.5 select-none">
+                  <button 
+                    onClick={() => handleNavigate('admin')}
+                    className="text-xs font-black text-[#00bf63] hover:text-[#00bf63]/80 hover:underline transition-all mt-1.5 flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>دخول لوحة التحكم (المشرف) 🔐</span>
+                  </button>
+                  <button
+                    onClick={handleSwitchToUser}
+                    className="text-[10px] font-black text-red-500 hover:text-red-700 hover:underline transition-all flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>تسجيل خروج المالك 🚪</span>
+                  </button>
+                </div>
+              )}
             </div>
 
           </div>
@@ -572,17 +826,42 @@ export default function App() {
                 <span className="text-[9px] opacity-75">&lt;</span>
               </button>
 
-              <button
-                onClick={() => { handleNavigate('admin'); setIsSidebarOpen(false); }}
-                className={`w-full flex items-center justify-between p-3.5 rounded-xl font-extrabold text-xs transition-all duration-200 ${
-                  currentView === 'admin' 
-                    ? 'bg-[#00bf63] text-white shadow-xs' 
-                    : 'text-gray-700 hover:bg-green-50 hover:text-[#00bf63]'
-                }`}
-              >
-                <span>لوحة التحكم للمسؤول 🔐</span>
-                <span className="text-[9px] opacity-75">&lt;</span>
-              </button>
+              {userRole === 'owner' ? (
+                <>
+                  <button
+                    onClick={() => { handleNavigate('admin'); setIsSidebarOpen(false); }}
+                    className={`w-full flex items-center justify-between p-3.5 rounded-xl font-extrabold text-xs transition-all duration-200 ${
+                      currentView === 'admin' 
+                        ? 'bg-[#00bf63] text-white shadow-xs' 
+                        : 'text-gray-700 hover:bg-green-50 hover:text-[#00bf63]'
+                    }`}
+                  >
+                    <span>لوحة التحكم للمسؤول 🔐</span>
+                    <span className="text-[9px] opacity-75">&lt;</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsSidebarOpen(false);
+                      handleSwitchToUser();
+                    }}
+                    className="w-full flex items-center justify-between p-3.5 rounded-xl font-extrabold text-xs text-red-600 hover:bg-red-50 transition-all duration-200"
+                  >
+                    <span>تسجيل خروج المالك 🚪</span>
+                    <span className="text-[9px] opacity-75">&lt;</span>
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => {
+                    setIsSidebarOpen(false);
+                    handleSwitchToUser();
+                  }}
+                  className="w-full flex items-center justify-between p-3.5 rounded-xl font-extrabold text-xs text-red-600 hover:bg-red-50 transition-all duration-200"
+                >
+                  <span>تسجيل الخروج 🚪</span>
+                  <span className="text-[9px] opacity-75">&lt;</span>
+                </button>
+              )}
             </div>
 
             {/* Sidebar Footer */}
@@ -655,6 +934,100 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* 7. Owner Login Dialog Modal */}
+      {showOwnerLoginModal && (
+        <div className="fixed inset-0 z-55 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs text-right font-sans select-none">
+          <div className="w-full max-w-md bg-white rounded-3xl border border-gray-100 shadow-2xl p-6 sm:p-8 relative animate-scale-up">
+            
+            {/* Close Button */}
+            <button
+              onClick={() => {
+                setShowOwnerLoginModal(false);
+                setLoginUsername('');
+                setLoginPassword('');
+                setLoginErrorMsg('');
+              }}
+              className="absolute left-4 top-4 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700 transition-colors cursor-pointer"
+            >
+              ✕
+            </button>
+
+            <div className="w-14 h-14 bg-[#eafbf2] text-[#00bf63] rounded-2xl flex items-center justify-center text-xl mx-auto mb-4">
+              <FaUnlockAlt />
+            </div>
+            
+            <h3 className="text-xl font-black text-gray-800 text-center mb-1">تسجيل دخول المالك</h3>
+            <p className="text-[11px] text-gray-400 font-bold text-center mb-5 leading-relaxed">
+              يرجى إدخال اسم المستخدم وكلمة المرور لتفعيل ميزات لوحة التحكم وإدارة المتجر.
+            </p>
+
+            {loginErrorMsg && (
+              <div className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-xs font-bold mb-4 text-center">
+                {loginErrorMsg}
+              </div>
+            )}
+
+            <form onSubmit={handleOwnerLoginSubmit} className="space-y-4">
+              <div>
+                <label className="block text-[11px] font-extrabold text-gray-600 mb-1">اسم المستخدم</label>
+                <input
+                  type="text"
+                  required
+                  value={loginUsername}
+                  onChange={(e) => setLoginUsername(e.target.value)}
+                  placeholder="مثال: admin"
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-[#00bf63]/40 focus:border-[#00bf63] text-left font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-extrabold text-gray-600 mb-1">كلمة المرور</label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    placeholder="إدخال كلمة المرور"
+                    className="w-full pr-10 pl-4 py-2.5 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-[#00bf63]/40 focus:border-[#00bf63] text-left font-bold"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none transition-colors cursor-pointer"
+                  >
+                    {showPassword ? <FaEyeSlash className="w-4 h-4 text-gray-500" /> : <FaEye className="w-4 h-4 text-gray-500" />}
+                  </button>
+                </div>
+                <p className="text-[10px] text-gray-400 font-semibold mt-1">الرمز الافتراضي: 123</p>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowOwnerLoginModal(false);
+                    setLoginUsername('');
+                    setLoginPassword('');
+                    setLoginErrorMsg('');
+                  }}
+                  className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-black rounded-xl transition-colors cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingLogin}
+                  className="flex-1 py-2.5 bg-[#00bf63] hover:bg-brand-green-dark text-white text-xs font-black rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {isSubmittingLogin ? 'جاري التحقق...' : 'تأكيد الدخول 🔑'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );

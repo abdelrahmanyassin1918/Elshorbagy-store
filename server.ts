@@ -45,7 +45,7 @@ interface OrderDetails {
   date: string;
 }
 
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT) || 3000;
 const DB_PATH = path.join(process.cwd(), 'data-db.json');
 
 // Ensure db directory or file exists with preseeded data

@@ -10,6 +10,9 @@ interface HeaderProps {
   onNavigate: (view: string, params?: any) => void;
   onSearch: (query: string) => void;
   onOpenSidebar: () => void;
+  userRole: 'user' | 'owner';
+  onSwitchToUser: () => void;
+  onSwitchToOwner: () => void;
 }
 
 export default function Header({
@@ -19,6 +22,9 @@ export default function Header({
   onNavigate,
   onSearch,
   onOpenSidebar,
+  userRole,
+  onSwitchToUser,
+  onSwitchToOwner,
 }: HeaderProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [scrolled, setScrolled] = useState(false);
@@ -93,16 +99,28 @@ export default function Header({
             >
               <span>المتجر 🛒</span>
             </button>
-            <button
-              onClick={() => onNavigate('admin')}
-              className={`px-4 py-2 text-xs font-black rounded-xl transition-all duration-200 cursor-pointer flex items-center gap-1 ${
-                currentView === 'admin'
-                  ? 'bg-brand-green text-black shadow-xs font-black'
-                  : 'bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-brand-purple'
-              }`}
-            >
-              <span>لوحة التحكم 🔐</span>
-            </button>
+
+            {userRole === 'owner' && (
+              <>
+                <button
+                  onClick={() => onNavigate('admin')}
+                  className={`px-4 py-2 text-xs font-black rounded-xl transition-all duration-200 cursor-pointer flex items-center gap-1 ${
+                    currentView === 'admin'
+                      ? 'bg-brand-green text-black shadow-xs font-black'
+                      : 'bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-brand-purple'
+                  }`}
+                >
+                  <span>لوحة التحكم 🔐</span>
+                </button>
+                <button
+                  onClick={onSwitchToUser}
+                  className="px-3 py-2 text-xs font-black rounded-xl bg-red-50 text-red-600 hover:bg-red-100 border border-red-100 transition-all duration-200 cursor-pointer flex items-center gap-1"
+                  title="تسجيل خروج المالك والعودة كعميل"
+                >
+                  <span>خروج المالك 🚪</span>
+                </button>
+              </>
+            )}
           </div>
 
           {/* Search Form */}
@@ -207,28 +225,46 @@ export default function Header({
 
           </div>
 
-          {/* Mobile Navigation Shortcuts */}
-          <div className="flex items-center justify-center gap-2 px-1">
-            <button
-              onClick={() => onNavigate('home')}
-              className={`flex-1 py-1.5 text-[11px] font-black rounded-lg text-center transition-all duration-200 cursor-pointer flex items-center justify-center gap-1 border ${
-                currentView !== 'admin'
-                  ? 'bg-brand-purple text-white border-brand-purple'
-                  : 'bg-white text-gray-600 border-gray-100'
-              }`}
-            >
-              <span>المتجر 🛒</span>
-            </button>
-            <button
-              onClick={() => onNavigate('admin')}
-              className={`flex-1 py-1.5 text-[11px] font-black rounded-lg text-center transition-all duration-200 cursor-pointer flex items-center justify-center gap-1 border ${
-                currentView === 'admin'
-                  ? 'bg-brand-green text-black border-brand-green'
-                  : 'bg-white text-gray-600 border-gray-100 animate-pulse'
-              }`}
-            >
-              <span>لوحة التحكم 🔐</span>
-            </button>
+          {/* Mobile Navigation Shortcuts & Role Toggle */}
+          <div className="flex flex-col gap-1.5 px-1 py-0.5">
+            <div className="flex items-center justify-center gap-2">
+              <button
+                onClick={() => onNavigate('home')}
+                className={`flex-1 py-1.5 text-[11px] font-black rounded-lg text-center transition-all duration-200 cursor-pointer flex items-center justify-center gap-1 border ${
+                  currentView !== 'admin'
+                    ? 'bg-brand-purple text-white border-brand-purple'
+                    : 'bg-white text-gray-600 border-gray-100'
+                }`}
+              >
+                <span>المتجر 🛒</span>
+              </button>
+              
+              {userRole === 'owner' && (
+                <button
+                  onClick={() => onNavigate('admin')}
+                  className={`flex-1 py-1.5 text-[11px] font-black rounded-lg text-center transition-all duration-200 cursor-pointer flex items-center justify-center gap-1 border ${
+                    currentView === 'admin'
+                      ? 'bg-brand-green text-black border-brand-green'
+                      : 'bg-white text-gray-600 border-gray-100 animate-pulse'
+                  }`}
+                >
+                  <span>لوحة التحكم 🔐</span>
+                </button>
+              )}
+            </div>
+
+            {userRole === 'owner' && (
+              <div className="flex items-center justify-between bg-red-50/50 border border-red-100 p-1 rounded-lg">
+                <span className="text-[10px] font-black text-red-700 mr-2 select-none">حساب المالك 👑</span>
+                <button
+                  type="button"
+                  onClick={onSwitchToUser}
+                  className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-[10px] font-black rounded-md transition-all cursor-pointer flex items-center gap-1"
+                >
+                  <span>تسجيل الخروج 🚪</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Bottom line: Search bar Centered slightly lower */}

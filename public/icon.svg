@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7c3aed" />
+      <stop offset="100%" stop-color="#5108b5" />
+    </linearGradient>
+    <linearGradient id="sparkleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#0ea5e9" />
+    </linearGradient>
+  </defs>
+  <!-- Background with rounded corners -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+  
+  <!-- Outer glowing ring/circle -->
+  <circle cx="256" cy="256" r="180" fill="none" stroke="rgba(255, 255, 255, 0.15)" stroke-width="12" />
+  
+  <!-- Clean Sparkle and Water Drop combo representing detergents & hygiene -->
+  <path d="M256,120 C180,220 170,290 170,320 C170,367.6 208.4,406 256,406 C303.6,406 342,367.6 342,320 C342,290 332,220 256,120 Z" fill="rgba(255, 255, 255, 0.95)" />
+  
+  <!-- Inside the drop, a clean sparkle/bubble pattern -->
+  <path d="M256,170 C230,240 200,270 200,320 C200,351 225,376 256,376 C287,376 312,351 312,320 C312,270 282,240 256,170 Z" fill="url(#bgGrad)" opacity="0.85" />
+  
+  <!-- Sparkles -->
+  <!-- Sparkle 1 -->
+  <path d="M360,160 L368,175 L383,183 L368,191 L360,206 L352,191 L337,183 L352,175 Z" fill="url(#sparkleGrad)" />
+  <!-- Sparkle 2 -->
+  <path d="M140,200 L145,210 L155,215 L145,220 L140,230 L135,220 L125,215 L135,210 Z" fill="#38bdf8" />
+  <!-- Sparkle 3 -->
+  <path d="M280,100 L283,106 L289,109 L283,112 L280,118 L277,112 L271,109 L277,106 Z" fill="#ffffff" />
+  
+  <!-- Clean/Soap bubbles -->
+  <circle cx="210" cy="210" r="14" fill="#38bdf8" opacity="0.8" />
+  <circle cx="310" cy="270" r="10" fill="#ffffff" opacity="0.9" />
+  <circle cx="190" cy="270" r="8" fill="#ffffff" opacity="0.7" />
+  <circle cx="290" cy="180" r="16" fill="#38bdf8" opacity="0.6" />
+</svg>

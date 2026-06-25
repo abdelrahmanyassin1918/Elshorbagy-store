@@ -1,0 +1,30 @@
+{
+  "name": "الشوربجي للمنظفات",
+  "short_name": "الشوربجي",
+  "description": "متجر الشوربجي للمنظفات والورقيات والمستلزمات المنزلية بالإسماعيلية",
+  "start_url": "/?source=pwa",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#5108b5",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "الرئيسية",
+      "url": "/",
+      "description": "تصفح المنتجات والعروض"
+    },
+    {
+      "name": "لوحة التحكم",
+      "url": "/?view=admin",
+      "description": "لوحة تحكم الإدارة لمتابعة الطلبات"
+    }
+  ]
+}

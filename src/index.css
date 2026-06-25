@@ -1,0 +1,41 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-brand-purple: #028090;
+  --color-brand-purple-dark: #005f73;
+  --color-brand-purple-light: #f0fafd;
+  --color-brand-green: #06d6a0;
+  --color-brand-green-light: #e6fcf5;
+  --color-brand-green-dark: #059669;
+  
+  --font-sans: "Cairo", "Inter", system-ui, -apple-system, sans-serif;
+}
+
+body {
+  direction: rtl;
+  text-align: right;
+  background-color: #ffffff;
+  color: #1f2937;
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Custom Scrollbar styling for sliders */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+/* Animations and custom components */
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(0.98); }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}

@@ -54,15 +54,20 @@ export default function AdminView({
   // State to filter and only show out of stock items
   const [onlyShowOutOfStock, setOnlyShowOutOfStock] = useState<boolean>(false);
 
-  // QR Code URL State (Defaults to Hugging Face production link)
+  // QR Code URL State (Defaults to direct Hugging Face production link or current public origin)
   const [qrCodeUrl, setQrCodeUrl] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('qr_code_custom_url');
       if (saved && !saved.includes('localhost') && !saved.includes('127.0.0.1')) {
         return saved;
       }
+      
+      const origin = window.location.origin;
+      if (origin && !origin.includes('localhost') && !origin.includes('127.0.0.1')) {
+        return origin;
+      }
     }
-    return 'https://huggingface.co/spaces/abdelrahmanyassin/Elshorbagy-Store';
+    return 'https://abdelrahmanyassin1918-elshorbagy-store.hf.space';
   });
 
   // Save QR Code URL to localStorage whenever it changes (ignore localhost)
@@ -2494,17 +2499,68 @@ ${itemsBrief}
                   />
                   <div className="flex flex-wrap gap-2 pt-1 justify-end">
                     <button
-                      onClick={() => setQrCodeUrl('https://huggingface.co/spaces/abdelrahmanyassin/Elshorbagy-Store')}
-                      className="px-2.5 py-1.5 bg-[#00bf63]/10 hover:bg-[#00bf63]/20 text-[#00bf63] text-[10px] font-black rounded-lg transition-colors border border-[#00bf63]/20 cursor-pointer"
+                      type="button"
+                      onClick={() => setQrCodeUrl('https://abdelrahmanyassin1918-elshorbagy-store.hf.space')}
+                      className={`px-2.5 py-1.5 text-[10px] font-black rounded-lg transition-all border cursor-pointer ${
+                        qrCodeUrl === 'https://abdelrahmanyassin1918-elshorbagy-store.hf.space'
+                          ? 'bg-[#00bf63] text-white border-[#00bf63] shadow-sm'
+                          : 'bg-[#00bf63]/10 hover:bg-[#00bf63]/20 text-[#00bf63] border-[#00bf63]/20'
+                      }`}
                     >
-                      إعادة تعيين للرابط العام (Hugging Face) 🌐
+                      رابط المتجر المباشر للعملاء 📱
                     </button>
                     <button
+                      type="button"
+                      onClick={() => setQrCodeUrl('https://huggingface.co/spaces/abdelrahmanyassin1918/Elshorbagy-Store')}
+                      className={`px-2.5 py-1.5 text-[10px] font-black rounded-lg transition-all border cursor-pointer ${
+                        qrCodeUrl === 'https://huggingface.co/spaces/abdelrahmanyassin1918/Elshorbagy-Store'
+                          ? 'bg-[#00bf63] text-white border-[#00bf63] shadow-sm'
+                          : 'bg-gray-50 hover:bg-gray-100 text-gray-600 border-gray-200'
+                      }`}
+                    >
+                      صفحة هجينج (Elshorbagy-Store) 🌐
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setQrCodeUrl('https://huggingface.co/spaces/abdelrahmanyassin1918/Elshorbagy-store')}
+                      className={`px-2.5 py-1.5 text-[10px] font-black rounded-lg transition-all border cursor-pointer ${
+                        qrCodeUrl === 'https://huggingface.co/spaces/abdelrahmanyassin1918/Elshorbagy-store'
+                          ? 'bg-[#00bf63] text-white border-[#00bf63] shadow-sm'
+                          : 'bg-gray-50 hover:bg-gray-100 text-gray-600 border-gray-200'
+                      }`}
+                    >
+                      صفحة هجينج (Elshorbagy-store) 🌐
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setQrCodeUrl(window.location.origin)}
-                      className="px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 text-[10px] font-black rounded-lg text-gray-600 transition-colors border border-gray-200 cursor-pointer"
+                      className={`px-2.5 py-1.5 text-[10px] font-black rounded-lg transition-all border cursor-pointer ${
+                        qrCodeUrl === window.location.origin
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                          : 'bg-blue-50 hover:bg-blue-100 text-blue-600 border-blue-200'
+                      }`}
                     >
                       رابط البيئة الحالي تلقائياً 🔄
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setQrCodeUrl('http://localhost:3000')}
+                      className={`px-2.5 py-1.5 text-[10px] font-black rounded-lg transition-all border cursor-pointer ${
+                        qrCodeUrl === 'http://localhost:3000'
+                          ? 'bg-gray-800 text-white border-gray-800 shadow-sm'
+                          : 'bg-gray-100 hover:bg-gray-200 text-gray-600 border-gray-200'
+                      }`}
+                    >
+                      رابط Localhost المحلي (3000) 💻
+                    </button>
+                  </div>
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-[11px] text-amber-800 font-bold space-y-1">
+                    <p className="font-black text-amber-900">⚠️ إذا ظهرت لك صفحة "Not Found" على هجينج فيس:</p>
+                    <ul className="list-decimal list-inside space-y-1 pr-1" dir="rtl">
+                      <li>تأكد من إنشاء الـ Space يدوياً أولاً على موقع Hugging Face بنفس الاسم وبنوع <strong>Static</strong>.</li>
+                      <li>تأكد من إضافة الـ <strong>HF_TOKEN</strong> في سيكريت ريبوستوري الجيت هاب وتشغيل الـ Workflow بنجاح.</li>
+                      <li>جرّب التبديل بين الزرين بالأعلى (الاسم بـ S كبيرة والاسم بـ s صغيرة) ليتطابق مع ما أنشأته على موقعهم.</li>
+                    </ul>
                   </div>
                   <p className="text-[10px] text-gray-400 font-extrabold leading-normal mt-1">
                     💡 نصيحة: تم ضبط الرابط افتراضياً ليكون رابط متجرك العام على Hugging Face لكي يعمل رمز الـ QR مباشرة من هواتف جميع العملاء في أي مكان!

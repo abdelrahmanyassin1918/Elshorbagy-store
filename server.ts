@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
-import admin from 'firebase-admin';
+import * as admin from 'firebase-admin';
 
 // Type definitions to keep typescript compiled output clean
 interface Product {

@@ -2,7 +2,8 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
-import * as admin from 'firebase-admin';
+import { initializeApp, getApps } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 
 // Type definitions to keep typescript compiled output clean
 interface Product {
@@ -183,11 +184,16 @@ try {
   const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
   if (fs.existsSync(configPath)) {
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-    admin.initializeApp({
-      projectId: config.projectId
-    });
+    let app;
+    if (getApps().length === 0) {
+      app = initializeApp({
+        projectId: config.projectId
+      });
+    } else {
+      app = getApps()[0];
+    }
     const dbId = config.firestoreDatabaseId || '(default)';
-    firestoreDb = (admin as any).firestore(dbId);
+    firestoreDb = dbId && dbId !== '(default)' ? getFirestore(app, dbId) : getFirestore(app);
     console.log('Firebase Admin initialized successfully with database:', dbId);
   } else {
     console.log('No firebase-applet-config.json found, running on local filesystem only.');

@@ -24,4 +24,4 @@ jobs:
           
           # Force push to Hugging Face Space (Replace username and space-name with your HF username and Space name if they are different)
           # We use force push to make sure Hugging Face matches GitHub exactly
-          git push --force https://abdelrahmanyassin1918:$HF_TOKEN@huggingface.co/spaces/abdelrahmanyassin1918/Elshorbagy-store main
+          git push --force https://abdelrahmanyassin:$HF_TOKEN@huggingface.co/spaces/abdelrahmanyassin/Elshorbagy-Store main

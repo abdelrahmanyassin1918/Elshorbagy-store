@@ -75,7 +75,7 @@ export default function Header({
             className="flex items-center gap-2.5 cursor-pointer shrink-0 select-none"
           >
             <div className="relative flex items-center justify-center w-12 h-12 rounded-2xl overflow-hidden border-2 border-brand-purple shadow-sm transition-all duration-300 hover:scale-105 shrink-0">
-              <img src="/icon.jpg" alt="الشوربجي للمنظفات" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              <img src="/icon.svg" alt="الشوربجي للمنظفات" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
             </div>
             <div className="flex flex-col text-right">
               <span className="text-xl md:text-2xl font-black text-brand-purple tracking-tight leading-none animate-pulse-subtle">
@@ -219,7 +219,7 @@ export default function Header({
                 </span>
               </div>
               <div className="relative flex items-center justify-center w-10 h-10 rounded-xl overflow-hidden border border-brand-purple shadow-xs shrink-0">
-                <img src="/icon.jpg" alt="الشوربجي للمنظفات" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                <img src="/icon.svg" alt="الشوربجي للمنظفات" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
               </div>
             </div>
 

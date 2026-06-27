@@ -21,6 +21,28 @@ interface AdminViewProps {
   onNavigate: (view: string) => void;
 }
 
+const getDirectUserUrl = (baseUrl: string) => {
+  if (!baseUrl) return '';
+  try {
+    const url = new URL(baseUrl);
+    url.searchParams.set('role', 'user');
+    return url.toString();
+  } catch (e) {
+    return baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'role=user';
+  }
+};
+
+const getGateUrl = (baseUrl: string) => {
+  if (!baseUrl) return '';
+  try {
+    const url = new URL(baseUrl);
+    url.searchParams.set('role', 'gate');
+    return url.toString();
+  } catch (e) {
+    return baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'role=gate';
+  }
+};
+
 export default function AdminView({
   products,
   banner,
@@ -30,7 +52,7 @@ export default function AdminView({
 }: AdminViewProps) {
   // Login credentials state
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return sessionStorage.getItem('elshorbagy_admin_token') === 'validated_sess_token_secure';
+    return (sessionStorage.getItem('elshorbagy_admin_token') || localStorage.getItem('elshorbagy_admin_token')) === 'validated_sess_token_secure';
   });
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -43,7 +65,7 @@ export default function AdminView({
 
   // Multi-user state
   const [adminDisplayName, setAdminDisplayName] = useState<string>(() => {
-    return sessionStorage.getItem('elshorbagy_admin_user_name') || 'المدير';
+    return sessionStorage.getItem('elshorbagy_admin_user_name') || localStorage.getItem('elshorbagy_admin_user_name') || 'المدير';
   });
   const [adminUsers, setAdminUsers] = useState<{ username: string; password: string; name: string }[]>([]);
   const [isAdminUsersLoading, setIsAdminUsersLoading] = useState(false);
@@ -51,31 +73,19 @@ export default function AdminView({
   const [newAdminPassword, setNewAdminPassword] = useState('');
   const [newAdminName, setNewAdminName] = useState('');
 
+  // Edit Admin User states
+  const [editingAdminIndex, setEditingAdminIndex] = useState<number | null>(null);
+  const [editingAdminName, setEditingAdminName] = useState('');
+  const [editingAdminUsername, setEditingAdminUsername] = useState('');
+  const [editingAdminNewPassword, setEditingAdminNewPassword] = useState('');
+  const [editingAdminOldPasswordConfirm, setEditingAdminOldPasswordConfirm] = useState('');
+  const [showEditingPassword, setShowEditingPassword] = useState(false);
+
   // State to filter and only show out of stock items
   const [onlyShowOutOfStock, setOnlyShowOutOfStock] = useState<boolean>(false);
 
-  // QR Code URL State (Defaults to direct Hugging Face production link or current public origin)
-  const [qrCodeUrl, setQrCodeUrl] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('qr_code_custom_url');
-      if (saved && !saved.includes('localhost') && !saved.includes('127.0.0.1')) {
-        return saved;
-      }
-      
-      const origin = window.location.origin;
-      if (origin && !origin.includes('localhost') && !origin.includes('127.0.0.1')) {
-        return origin;
-      }
-    }
-    return 'https://abdelrahmanyassin1918-elshorbagy-store.hf.space';
-  });
-
-  // Save QR Code URL to localStorage whenever it changes (ignore localhost)
-  useEffect(() => {
-    if (typeof window !== 'undefined' && qrCodeUrl && !qrCodeUrl.includes('localhost') && !qrCodeUrl.includes('127.0.0.1')) {
-      localStorage.setItem('qr_code_custom_url', qrCodeUrl);
-    }
-  }, [qrCodeUrl]);
+  // QR Code URL State (Fixed to production Vercel URL)
+  const qrCodeUrl = 'https://elshorbagy-store.vercel.app';
 
   // Notification API Permission State
   const [notificationPermission, setNotificationPermission] = useState<string>(() => {
@@ -129,7 +139,7 @@ export default function AdminView({
       if (permission === 'granted') {
         const dummyNotification = new Notification('تم تفعيل الإشعارات بنجاح! 🔔', {
           body: 'ستصلك تنبيهات فورية فور ورود أي طلب جديد للمتجر.',
-          icon: '/icon.jpg',
+          icon: '/icon.svg',
         });
         playNotificationSound();
       }
@@ -560,7 +570,7 @@ ${itemsBrief}
             if ('Notification' in window && Notification.permission === 'granted') {
               new Notification('🚨 طلب جديد بالمتجر الشوربجي!', {
                 body: `وصلك أوردر جديد رقم ${latestNewOrder.orderId} بقيمة ${latestNewOrder.total} ج.م من العميل ${latestNewOrder.customerInfo.name}`,
-                icon: '/icon.jpg',
+                icon: '/icon.svg',
                 requireInteraction: true
               });
             }
@@ -616,8 +626,10 @@ ${itemsBrief}
       if (res.ok) {
         const data = await res.json();
         sessionStorage.setItem('elshorbagy_admin_token', data.token);
+        localStorage.setItem('elshorbagy_admin_token', data.token);
         const displayName = data.user?.name || data.user?.username || 'المدير';
         sessionStorage.setItem('elshorbagy_admin_user_name', displayName);
+        localStorage.setItem('elshorbagy_admin_user_name', displayName);
         setAdminDisplayName(displayName);
         setIsAuthenticated(true);
         onRefreshData();
@@ -635,6 +647,8 @@ ${itemsBrief}
   const handleLogout = () => {
     sessionStorage.removeItem('elshorbagy_admin_token');
     sessionStorage.removeItem('elshorbagy_admin_user_name');
+    localStorage.removeItem('elshorbagy_admin_token');
+    localStorage.removeItem('elshorbagy_admin_user_name');
     setIsAuthenticated(false);
     setUsername('');
     setPassword('');
@@ -2274,7 +2288,21 @@ ${itemsBrief}
                           </td>
                           <td className="p-3 font-mono text-gray-500 text-left" dir="ltr">{u.username}</td>
                           <td className="p-3 font-mono text-gray-500 text-left" dir="ltr">•••••••• (مخفية للحماية)</td>
-                          <td className="p-3 text-center">
+                          <td className="p-3 text-center flex items-center justify-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingAdminIndex(i);
+                                setEditingAdminName(u.name || '');
+                                setEditingAdminUsername(u.username || '');
+                                setEditingAdminNewPassword(u.password || '');
+                                setEditingAdminOldPasswordConfirm('');
+                              }}
+                              className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-100 rounded-lg transition-colors cursor-pointer text-[10px] font-black"
+                              title="تعديل بيانات الحساب"
+                            >
+                              تعديل الحساب ⚙️
+                            </button>
                             <button
                               onClick={async () => {
                                 if (adminUsers.length <= 1) {
@@ -2411,6 +2439,164 @@ ${itemsBrief}
               </form>
             </div>
           </div>
+
+          {/************** MODAL: EDIT ADMIN USER *****************/}
+          {editingAdminIndex !== null && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 z-50 overflow-y-auto">
+              <div className="bg-white rounded-3xl w-full max-w-md p-6 border border-gray-150 shadow-2xl relative">
+                <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-4">
+                  <h4 className="text-base sm:text-lg font-black text-gray-800">
+                    ✏️ تعديل بيانات المشرف: {adminUsers[editingAdminIndex]?.name}
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => setEditingAdminIndex(null)}
+                    className="p-1 text-gray-400 hover:text-gray-600 text-lg cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (!editingAdminName.trim() || !editingAdminUsername.trim()) {
+                      alert('برجاء ملء الحقول المطلوبة.');
+                      return;
+                    }
+
+                    // Verify the old password matches to authorize change
+                    const currentAdmin = adminUsers[editingAdminIndex];
+                    if (editingAdminOldPasswordConfirm !== currentAdmin.password) {
+                      alert('❌ كلمة المرور القديمة غير صحيحة! لا يمكن تطبيق التعديلات بدون إدخال كلمة المرور القديمة بشكل صحيح.');
+                      return;
+                    }
+
+                    // Check if username has changed and if the new one is already taken by another admin
+                    const isUsernameTaken = adminUsers.some(
+                      (u, idx) => idx !== editingAdminIndex && u.username.toLowerCase() === editingAdminUsername.trim().toLowerCase()
+                    );
+                    if (isUsernameTaken) {
+                      alert('⚠️ اسم المستخدم الجديد هذا مستخدم بالفعل من قبل مشرف آخر! برجاء اختيار اسم فريد.');
+                      return;
+                    }
+
+                    // Build updated user details
+                    const updatedUser = {
+                      name: editingAdminName.trim(),
+                      username: editingAdminUsername.trim(),
+                      password: editingAdminNewPassword.trim() || currentAdmin.password // if empty, keep old password
+                    };
+
+                    const updatedUsersList = [...adminUsers];
+                    updatedUsersList[editingAdminIndex] = updatedUser;
+
+                    try {
+                      const res = await fetch('/api/admin/users', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ users: updatedUsersList })
+                      });
+                      if (res.ok) {
+                        const data = await res.json();
+                        setAdminUsers(data.users || []);
+                        setEditingAdminIndex(null);
+                        
+                        // If current logged-in user changed their name or login username, update local/session display settings
+                        const isCurrentUser = currentAdmin.name === adminDisplayName || currentAdmin.username === username;
+                        if (isCurrentUser) {
+                          const newDisplayName = updatedUser.name || updatedUser.username;
+                          sessionStorage.setItem('elshorbagy_admin_user_name', newDisplayName);
+                          localStorage.setItem('elshorbagy_admin_user_name', newDisplayName);
+                          setAdminDisplayName(newDisplayName);
+                        }
+                        
+                        alert('تم تعديل بيانات الحساب بنجاح! 🎉');
+                      } else {
+                        alert('فشل في تعديل بيانات الحساب.');
+                      }
+                    } catch (err) {
+                      alert('خطأ في الاتصال بالخادم.');
+                    }
+                  }}
+                  className="space-y-4 text-right"
+                >
+                  <div>
+                    <label className="block text-xs font-black text-gray-700 mb-1">الاسم الكامل للمشرف 👤</label>
+                    <input
+                      type="text"
+                      required
+                      value={editingAdminName}
+                      onChange={(e) => setEditingAdminName(e.target.value)}
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-[#00bf63]/40"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-black text-gray-700 mb-1">اسم المستخدم للدخول (بالإنجليزي) 💻</label>
+                    <input
+                      type="text"
+                      required
+                      value={editingAdminUsername}
+                      onChange={(e) => setEditingAdminUsername(e.target.value)}
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-xs text-left font-mono focus:ring-2 focus:ring-[#00bf63]/40"
+                      dir="ltr"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-black text-gray-700 mb-1">كلمة المرور الجديدة (اختياري - اتركه فارغاً لعدم التغيير) 🔑</label>
+                    <div className="relative">
+                      <input
+                        type={showEditingPassword ? 'text' : 'password'}
+                        value={editingAdminNewPassword}
+                        onChange={(e) => setEditingAdminNewPassword(e.target.value)}
+                        placeholder="اكتب كلمة مرور جديدة أو اتركها كما هي"
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-xs text-left font-mono focus:ring-2 focus:ring-[#00bf63]/40"
+                        dir="ltr"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowEditingPassword(!showEditingPassword)}
+                        className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 hover:text-gray-600 cursor-pointer"
+                      >
+                        {showEditingPassword ? '👁️' : '👁️‍عون'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="bg-amber-50 p-4 rounded-2xl border border-amber-200">
+                    <label className="block text-xs font-black text-amber-900 mb-1">🔑 يرجى كتابة كلمة المرور الحالية (القديمة) لتأكيد التعديل:</label>
+                    <input
+                      type="password"
+                      required
+                      value={editingAdminOldPasswordConfirm}
+                      onChange={(e) => setEditingAdminOldPasswordConfirm(e.target.value)}
+                      placeholder="كلمة المرور الحالية للمشرف"
+                      className="w-full px-4 py-2.5 bg-white border border-amber-300 rounded-xl text-xs text-left font-mono focus:ring-2 focus:ring-amber-500/40"
+                      dir="ltr"
+                    />
+                  </div>
+
+                  <div className="flex gap-2 justify-end pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditingAdminIndex(null)}
+                      className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      إلغاء ❌
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2.5 bg-[#00bf63] hover:bg-[#00bf63]/90 text-white rounded-xl text-xs font-black transition-colors shadow-md cursor-pointer"
+                    >
+                      حفظ وتطبيق التعديل ✔️
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -2419,154 +2605,130 @@ ${itemsBrief}
         <div className="bg-white border border-gray-150 rounded-3xl p-6 md:p-8 shadow-sm space-y-6">
           <div className="text-center max-w-2xl mx-auto space-y-4">
             <span className="text-4xl block">📱</span>
-            <h3 className="text-2xl font-black text-gray-800">رمز استجابة سريع (QR Code) للمتجر</h3>
+            <h3 className="text-2xl font-black text-gray-800">رموز الاستجابة السريعة (QR Codes) للمتجر</h3>
             <p className="text-xs sm:text-sm text-gray-500 font-bold leading-relaxed">
-              قم بإنشاء كود الـ QR الخاص بمتجرك لتتمكن من تحميله كصورة، طباعته، وتعليقه في المحل أو مشاركته مع العملاء ليدخلوا إلى المتجر مباشرة بهواتفهم.
+              قمنا بتوفير نوعين من رموز الـ QR لتسهيل العمل في متجرك. يمكنك تحميل أي منهما كصورة، طباعته، ومشاركته مع زبائنك أو استخدامه بنفسك.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center max-w-4xl mx-auto">
-            {/* Left Column: QR Code Display Card */}
-            <div className="bg-gray-50 border border-gray-200 rounded-3xl p-6 flex flex-col items-center justify-center text-center space-y-4 shadow-inner">
-              <div className="bg-white p-4 rounded-2xl border border-gray-150 shadow-sm">
+          {/* TWO QR CODES SIDE-BY-SIDE / STACKED */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-5xl mx-auto">
+            {/* 1. Direct Customer QR Code (Green Accent) */}
+            <div className="bg-emerald-50/50 border-2 border-emerald-100 rounded-3xl p-6 flex flex-col justify-between text-center space-y-5 shadow-xs transition-all hover:shadow-md">
+              <div className="flex flex-col items-center space-y-2">
+                <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-3 py-1 rounded-full">⚡ للزبائن والعملاء (دخول تلقائي)</span>
+                <h4 className="text-base font-black text-gray-800">رمز الزبائن المباشر 🛒</h4>
+                <p className="text-xs text-gray-500 font-bold leading-normal max-w-sm">
+                  اطبع هذا الرمز وعلقه في المحل لكي يمسحه الزبائن بهواتفهم ويدخلوا إلى المتجر لتصفح المنتجات وطلبها <strong>مباشرة بدون شاشة اختيار الأدوار</strong>.
+                </p>
+              </div>
+
+              <div className="bg-white p-4 rounded-2xl border border-emerald-100 shadow-sm inline-block mx-auto">
                 <img 
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrCodeUrl)}`} 
-                  alt="QR Code" 
-                  className="w-48 h-48 sm:w-56 sm:h-56 mx-auto object-contain"
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(getDirectUserUrl(qrCodeUrl))}`} 
+                  alt="Direct Customer QR Code" 
+                  className="w-44 h-44 sm:w-48 sm:h-48 mx-auto object-contain"
                   referrerPolicy="no-referrer"
                 />
               </div>
-              <div>
-                <h4 className="text-base font-extrabold text-gray-800">الشوربجي للمنظفات والورقيات ✨</h4>
-                <p className="text-[11px] text-gray-400 font-bold mt-1 select-all break-all" dir="ltr">
-                  {qrCodeUrl}
-                </p>
-              </div>
 
-              {qrCodeUrl.includes('localhost') && (
-                <div className="bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-bold p-3 rounded-xl w-full text-right leading-relaxed">
-                  ⚠️ انتبه: الرابط الحالي يحتوي على (localhost) وهو يعمل فقط على جهاز الكمبيوتر الداخلي ولا يمكن للعملاء فتحه بهواتفهم. يُفضل استخدام رابط الهجينج فيس أو رابط المتجر العام أدناه!
+              <div className="space-y-3">
+                <div className="bg-white px-3 py-2 rounded-xl border border-gray-150 text-right">
+                  <span className="block text-[10px] text-gray-400 font-bold mb-0.5">الرابط المدمج في كود الزبائن:</span>
+                  <p className="text-[10px] text-emerald-600 font-mono font-bold select-all break-all leading-relaxed" dir="ltr">
+                    {getDirectUserUrl(qrCodeUrl)}
+                  </p>
                 </div>
-              )}
 
-              <div className="flex flex-col sm:flex-row gap-2 w-full">
-                <a
-                  href={`https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(qrCodeUrl)}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex-1 py-2.5 bg-[#00bf63] hover:bg-brand-green-dark text-white text-xs font-black rounded-xl transition-all shadow-sm text-center block cursor-pointer"
-                >
-                  تحميل كود QR بدقة عالية 📥
-                </a>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(qrCodeUrl);
-                    alert('تم نسخ رابط المتجر بنجاح! 📋');
-                  }}
-                  className="px-4 py-2.5 bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-black rounded-xl transition-all border border-gray-200 cursor-pointer"
-                >
-                  نسخ الرابط
-                </button>
+                <div className="flex gap-2 w-full">
+                  <a
+                    href={`https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(getDirectUserUrl(qrCodeUrl))}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex-1 py-2.5 bg-[#00bf63] hover:bg-brand-green-dark text-white text-xs font-black rounded-xl transition-all shadow-sm text-center block cursor-pointer"
+                  >
+                    تحميل كود الزبائن 📥
+                  </a>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(getDirectUserUrl(qrCodeUrl));
+                      alert('تم نسخ رابط الزبائن المباشر بنجاح! 📋');
+                    }}
+                    className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-black rounded-xl transition-all border border-gray-200 cursor-pointer"
+                  >
+                    نسخ الرابط
+                  </button>
+                </div>
               </div>
             </div>
 
-            {/* Right Column: Information & Marketing Guidelines */}
-            <div className="space-y-4">
-              <div className="bg-green-50/50 border border-green-100 p-5 rounded-2xl space-y-2.5 text-right">
-                <h4 className="text-sm font-black text-green-800 flex items-center gap-1.5 justify-end">
-                  <span>💡 كيف تستفيد من رمز الـ QR؟</span>
-                </h4>
-                <ul className="text-xs text-green-700 font-bold space-y-2 leading-relaxed list-disc list-inside">
-                  <li><strong>اطبعه وعلقه في المحل:</strong> اطلب من زوار المحل مسحه لعرض المنتجات والأسعار بسهولة وهواتفهم معهم.</li>
-                  <li><strong>شاركه كصورة على واتساب:</strong> أرسل كود الـ QR لعملائك على واتساب أو انشره في مجموعاتك الخدمية.</li>
-                  <li><strong>توفير الجهد على العملاء:</strong> يغني العميل عن كتابة روابط طويلة، مسح واحد بكاميرا الموبايل وينقله للمتجر فوراً!</li>
-                </ul>
+            {/* 2. General Gateway QR Code (Purple Accent) */}
+            <div className="bg-purple-50/50 border-2 border-purple-100 rounded-3xl p-6 flex flex-col justify-between text-center space-y-5 shadow-xs transition-all hover:shadow-md">
+              <div className="flex flex-col items-center space-y-2">
+                <span className="bg-purple-100 text-purple-800 text-[10px] font-black px-3 py-1 rounded-full">🔑 للمالك والمسؤول (شاشة الاختيار)</span>
+                <h4 className="text-base font-black text-gray-800">الرمز العام / كود المدير 👑</h4>
+                <p className="text-xs text-gray-500 font-bold leading-normal max-w-sm">
+                  استخدم هذا الكود للدخول بنفسك كمدير أو لإعطائه لمن يحتاج الدخول للوحة التحكم، حيث يفتح <strong>شاشة الاختيار</strong> (مستخدم أو مالك) لتسجيل الدخول.
+                </p>
               </div>
 
-              <div className="border border-gray-150 p-5 rounded-2xl space-y-3 text-right">
-                <h4 className="text-xs font-black text-gray-700">⚙️ الرابط المدمج في رمز الـ QR</h4>
-                <p className="text-[11px] text-gray-400 font-bold leading-relaxed">
-                  إذا كنت ترغب في تغيير الرابط المدمج في الكود لرابطك العام أو رابط مخصص، يمكنك كتابته أو اختياره مباشرة هنا وسيتم تحديثه فوراً:
-                </p>
-                <div className="space-y-2">
-                  <input
-                    type="text"
-                    value={qrCodeUrl}
-                    onChange={(e) => setQrCodeUrl(e.target.value)}
-                    placeholder="ضع الرابط الذي تريده هنا"
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-xs text-left font-mono focus:ring-2 focus:ring-[#00bf63]/40"
-                    dir="ltr"
-                  />
-                  <div className="flex flex-wrap gap-2 pt-1 justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setQrCodeUrl('https://abdelrahmanyassin1918-elshorbagy-store.hf.space')}
-                      className={`px-2.5 py-1.5 text-[10px] font-black rounded-lg transition-all border cursor-pointer ${
-                        qrCodeUrl === 'https://abdelrahmanyassin1918-elshorbagy-store.hf.space'
-                          ? 'bg-[#00bf63] text-white border-[#00bf63] shadow-sm'
-                          : 'bg-[#00bf63]/10 hover:bg-[#00bf63]/20 text-[#00bf63] border-[#00bf63]/20'
-                      }`}
-                    >
-                      رابط المتجر المباشر للعملاء 📱
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setQrCodeUrl('https://huggingface.co/spaces/abdelrahmanyassin1918/Elshorbagy-Store')}
-                      className={`px-2.5 py-1.5 text-[10px] font-black rounded-lg transition-all border cursor-pointer ${
-                        qrCodeUrl === 'https://huggingface.co/spaces/abdelrahmanyassin1918/Elshorbagy-Store'
-                          ? 'bg-[#00bf63] text-white border-[#00bf63] shadow-sm'
-                          : 'bg-gray-50 hover:bg-gray-100 text-gray-600 border-gray-200'
-                      }`}
-                    >
-                      صفحة هجينج (Elshorbagy-Store) 🌐
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setQrCodeUrl('https://huggingface.co/spaces/abdelrahmanyassin1918/Elshorbagy-store')}
-                      className={`px-2.5 py-1.5 text-[10px] font-black rounded-lg transition-all border cursor-pointer ${
-                        qrCodeUrl === 'https://huggingface.co/spaces/abdelrahmanyassin1918/Elshorbagy-store'
-                          ? 'bg-[#00bf63] text-white border-[#00bf63] shadow-sm'
-                          : 'bg-gray-50 hover:bg-gray-100 text-gray-600 border-gray-200'
-                      }`}
-                    >
-                      صفحة هجينج (Elshorbagy-store) 🌐
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setQrCodeUrl(window.location.origin)}
-                      className={`px-2.5 py-1.5 text-[10px] font-black rounded-lg transition-all border cursor-pointer ${
-                        qrCodeUrl === window.location.origin
-                          ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                          : 'bg-blue-50 hover:bg-blue-100 text-blue-600 border-blue-200'
-                      }`}
-                    >
-                      رابط البيئة الحالي تلقائياً 🔄
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setQrCodeUrl('http://localhost:3000')}
-                      className={`px-2.5 py-1.5 text-[10px] font-black rounded-lg transition-all border cursor-pointer ${
-                        qrCodeUrl === 'http://localhost:3000'
-                          ? 'bg-gray-800 text-white border-gray-800 shadow-sm'
-                          : 'bg-gray-100 hover:bg-gray-200 text-gray-600 border-gray-200'
-                      }`}
-                    >
-                      رابط Localhost المحلي (3000) 💻
-                    </button>
-                  </div>
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-[11px] text-amber-800 font-bold space-y-1">
-                    <p className="font-black text-amber-900">⚠️ إذا ظهرت لك صفحة "Not Found" على هجينج فيس:</p>
-                    <ul className="list-decimal list-inside space-y-1 pr-1" dir="rtl">
-                      <li>تأكد من إنشاء الـ Space يدوياً أولاً على موقع Hugging Face بنفس الاسم وبنوع <strong>Static</strong>.</li>
-                      <li>تأكد من إضافة الـ <strong>HF_TOKEN</strong> في سيكريت ريبوستوري الجيت هاب وتشغيل الـ Workflow بنجاح.</li>
-                      <li>جرّب التبديل بين الزرين بالأعلى (الاسم بـ S كبيرة والاسم بـ s صغيرة) ليتطابق مع ما أنشأته على موقعهم.</li>
-                    </ul>
-                  </div>
-                  <p className="text-[10px] text-gray-400 font-extrabold leading-normal mt-1">
-                    💡 نصيحة: تم ضبط الرابط افتراضياً ليكون رابط متجرك العام على Hugging Face لكي يعمل رمز الـ QR مباشرة من هواتف جميع العملاء في أي مكان!
+              <div className="bg-white p-4 rounded-2xl border border-purple-100 shadow-sm inline-block mx-auto">
+                <img 
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(getGateUrl(qrCodeUrl))}`} 
+                  alt="General/Admin QR Code" 
+                  className="w-44 h-44 sm:w-48 sm:h-48 mx-auto object-contain"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+
+              <div className="space-y-3">
+                <div className="bg-white px-3 py-2 rounded-xl border border-gray-150 text-right">
+                  <span className="block text-[10px] text-gray-400 font-bold mb-0.5">الرابط المدمج في كود المدير:</span>
+                  <p className="text-[10px] text-brand-purple font-mono font-bold select-all break-all leading-relaxed" dir="ltr">
+                    {getGateUrl(qrCodeUrl)}
                   </p>
                 </div>
+
+                <div className="flex gap-2 w-full">
+                  <a
+                    href={`https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(getGateUrl(qrCodeUrl))}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex-1 py-2.5 bg-brand-purple hover:bg-brand-purple-dark text-white text-xs font-black rounded-xl transition-all shadow-sm text-center block cursor-pointer"
+                  >
+                    تحميل كود المدير 📥
+                  </a>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(getGateUrl(qrCodeUrl));
+                      alert('تم نسخ رابط شاشة الاختيار بنجاح! 📋');
+                    }}
+                    className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-black rounded-xl transition-all border border-gray-200 cursor-pointer"
+                  >
+                    نسخ الرابط
+                  </button>
+                </div>
               </div>
+            </div>
+          </div>
+
+          {/* INFO & GUIDELINES */}
+          <div className="max-w-4xl mx-auto pt-6 border-t border-gray-150 text-right space-y-4">
+            <div className="bg-emerald-50/40 border border-emerald-100 p-5 rounded-2xl space-y-2 text-right">
+              <h5 className="text-sm font-black text-emerald-800 flex items-center gap-1.5 justify-end">
+                <span>💡 نصائح هامة ومفيدة لعملك:</span>
+              </h5>
+              <ul className="text-xs text-emerald-700 font-bold space-y-2 leading-relaxed list-disc list-inside">
+                <li>
+                  <strong>رابط الزبائن المباشر:</strong> يمكنك وضعه كملصق على باب المحل أو طاولات العرض، عندما يقوم الزبون بمسحه يدخل مباشرة إلى قائمة المنتجات للشراء الفوري.
+                </li>
+                <li>
+                  <strong>رمز كود المدير:</strong> يمكنك حفظه بهاتفك لسهولة الدخول للوحة التحكم وتحديث المنتجات والطلبيات من أي مكان، حيث يوجهك لشاشة تسجيل الدخول.
+                </li>
+                <li>
+                  <strong>نشر الرابط:</strong> رابط موقعك الرسمي هو <span className="font-mono text-emerald-950 select-all font-black">https://elshorbagy-store.vercel.app</span> ويمكنك نسخه وإرساله لجميع عملائك على واتساب وجروبات الفيس بوك ليعمل 24 ساعة حتى لو كنت غير متصل بالإنترنت!
+                </li>
+              </ul>
             </div>
           </div>
         </div>

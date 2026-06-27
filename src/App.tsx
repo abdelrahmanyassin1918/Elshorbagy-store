@@ -13,6 +13,46 @@ import { Product, CartItem, OrderDetails } from './types';
 import { PRODUCTS, CATEGORIES } from './data';
 import { FaHeadset, FaPhoneAlt, FaMapMarkerAlt, FaEnvelope, FaFacebook, FaInstagram, FaTiktok, FaUnlockAlt, FaEye, FaEyeSlash } from 'react-icons/fa';
 
+const getRoleFromUrl = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  const href = window.location.href;
+  const hrefLower = href.toLowerCase();
+  
+  if (hrefLower.includes('role=user')) return 'user';
+  if (hrefLower.includes('role=gate')) return 'gate';
+  
+  // Try search params first
+  const searchParams = new URLSearchParams(window.location.search);
+  let role = searchParams.get('role');
+  if (role) return role.toLowerCase();
+
+  // Try parsing from hash if search params didn't have it
+  if (window.location.hash) {
+    const hashIndex = window.location.hash.indexOf('?');
+    if (hashIndex !== -1) {
+      const hashParams = new URLSearchParams(window.location.hash.substring(hashIndex + 1));
+      role = hashParams.get('role');
+      if (role) return role.toLowerCase();
+    }
+  }
+
+  return null;
+};
+
+const cleanRoleFromUrl = () => {
+  if (typeof window === 'undefined') return;
+  try {
+    let newHref = window.location.href;
+    // Replace ?role=user or &role=user or ?role=gate or &role=gate (case insensitive)
+    newHref = newHref.replace(/[?&]role=[^&]+/gi, '');
+    // Clean up double question marks or trailing question marks/ampersands if any
+    newHref = newHref.replace(/\?&/, '?').replace(/\?$/, '').replace(/&$/, '');
+    window.history.replaceState({}, '', newHref);
+  } catch (e) {
+    console.error(e);
+  }
+};
+
 export default function App() {
   // Navigation Routing States
   const [currentView, setCurrentView] = useState<string>('home');
@@ -21,7 +61,11 @@ export default function App() {
   // User Role State: 'user' | 'owner' (default to 'user' unless logged in previously)
   const [userRole, setUserRole] = useState<'user' | 'owner'>(() => {
     if (typeof window !== 'undefined') {
-      const token = sessionStorage.getItem('elshorbagy_admin_token');
+      const roleParam = getRoleFromUrl();
+      if (roleParam === 'user') return 'user';
+      if (roleParam === 'gate') return 'user';
+
+      const token = sessionStorage.getItem('elshorbagy_admin_token') || localStorage.getItem('elshorbagy_admin_token');
       return token === 'validated_sess_token_secure' ? 'owner' : 'user';
     }
     return 'user';
@@ -30,10 +74,23 @@ export default function App() {
   // Entry gate status: true if they have chosen customer or logged in as owner
   const [hasEntered, setHasEntered] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
-      const token = sessionStorage.getItem('elshorbagy_admin_token');
+      const roleParam = getRoleFromUrl();
+      if (roleParam === 'user') {
+        sessionStorage.setItem('elshorbagy_gate_entered', 'true');
+        localStorage.setItem('elshorbagy_gate_entered', 'true');
+        return true;
+      } else if (roleParam === 'gate') {
+        sessionStorage.removeItem('elshorbagy_gate_entered');
+        sessionStorage.removeItem('elshorbagy_admin_token');
+        localStorage.removeItem('elshorbagy_gate_entered');
+        localStorage.removeItem('elshorbagy_admin_token');
+        return false;
+      }
+
+      const token = sessionStorage.getItem('elshorbagy_admin_token') || localStorage.getItem('elshorbagy_admin_token');
       if (token === 'validated_sess_token_secure') return true;
       
-      const savedChoice = sessionStorage.getItem('elshorbagy_gate_entered');
+      const savedChoice = sessionStorage.getItem('elshorbagy_gate_entered') || localStorage.getItem('elshorbagy_gate_entered');
       return savedChoice === 'true';
     }
     return false;
@@ -52,6 +109,9 @@ export default function App() {
     sessionStorage.removeItem('elshorbagy_admin_token');
     sessionStorage.removeItem('elshorbagy_admin_user_name');
     sessionStorage.removeItem('elshorbagy_gate_entered');
+    localStorage.removeItem('elshorbagy_admin_token');
+    localStorage.removeItem('elshorbagy_admin_user_name');
+    localStorage.removeItem('elshorbagy_gate_entered');
     setUserRole('user');
     setHasEntered(false);
     handleNavigate('home');
@@ -83,9 +143,12 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         sessionStorage.setItem('elshorbagy_admin_token', data.token);
+        localStorage.setItem('elshorbagy_admin_token', data.token);
         const displayName = data.user?.name || data.user?.username || 'المدير';
         sessionStorage.setItem('elshorbagy_admin_user_name', displayName);
+        localStorage.setItem('elshorbagy_admin_user_name', displayName);
         sessionStorage.setItem('elshorbagy_gate_entered', 'true');
+        localStorage.setItem('elshorbagy_gate_entered', 'true');
         setUserRole('owner');
         setHasEntered(true);
         setShowOwnerLoginModal(false);
@@ -158,6 +221,27 @@ export default function App() {
 
   useEffect(() => {
     refreshLiveState();
+
+    if (typeof window !== 'undefined') {
+      const roleParam = getRoleFromUrl();
+      if (roleParam === 'user') {
+        sessionStorage.setItem('elshorbagy_gate_entered', 'true');
+        localStorage.setItem('elshorbagy_gate_entered', 'true');
+        setUserRole('user');
+        setHasEntered(true);
+        handleNavigate('home');
+        cleanRoleFromUrl();
+      } else if (roleParam === 'gate') {
+        sessionStorage.removeItem('elshorbagy_gate_entered');
+        sessionStorage.removeItem('elshorbagy_admin_token');
+        localStorage.removeItem('elshorbagy_gate_entered');
+        localStorage.removeItem('elshorbagy_admin_token');
+        setUserRole('user');
+        setHasEntered(false);
+        handleNavigate('home');
+        cleanRoleFromUrl();
+      }
+    }
   }, []);
 
   // Cart State (Initialized from localStorage helper)
@@ -361,7 +445,7 @@ export default function App() {
             <div className="absolute inset-0 bg-radial from-transparent to-brand-purple-dark/40 opacity-40"></div>
             <div className="relative z-10 flex flex-col items-center justify-center">
               <div className="relative flex items-center justify-center w-20 h-20 rounded-2xl overflow-hidden border-2 border-white/60 shadow-md mb-4 animate-scale-up">
-                <img src="/icon.jpg" alt="الشوربجي" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                <img src="/icon.svg" alt="الشوربجي" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
               </div>
               <h1 className="text-3xl font-black tracking-tight leading-tight mb-2">متجر الشوربجي</h1>
               <p className="text-white/85 text-xs font-black">للمنظفات والورقيات والمواد الاستهلاكية 🛒</p>

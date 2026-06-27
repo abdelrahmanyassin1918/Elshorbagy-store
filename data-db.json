@@ -167,7 +167,8 @@
       "shipping": 0,
       "total": 144,
       "date": "السبت، ٢٧ يونيو ٢٠٢٦ في ٠١:١٧ ص",
-      "dateKey": "06/27/2026"
+      "dateKey": "06/27/2026",
+      "status": "delivered"
     }
   ],
   "adminSettings": {

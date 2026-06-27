@@ -95,7 +95,7 @@ export default function PwaBanner() {
           <div className="flex items-center gap-3.5 text-right w-full md:w-auto">
             <div className="w-12 h-12 md:w-14 md:h-14 bg-white rounded-2xl flex items-center justify-center shadow-md border border-white/20 shrink-0">
               <img 
-                src="/icon.jpg" 
+                src="/icon.svg" 
                 alt="الشوربجي" 
                 className="w-10 h-10 md:w-11 md:h-11 rounded-xl object-cover"
                 referrerPolicy="no-referrer"
@@ -174,7 +174,7 @@ export default function PwaBanner() {
               
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-md">
-                  <img src="/icon.jpg" alt="الشوربجي" className="w-10 h-10 rounded-lg object-cover" referrerPolicy="no-referrer" />
+                  <img src="/icon.svg" alt="الشوربجي" className="w-10 h-10 rounded-lg object-cover" referrerPolicy="no-referrer" />
                 </div>
                 <div>
                   <h3 className="text-base md:text-lg font-black">تحميل تطبيق الشوربجي ستور</h3>

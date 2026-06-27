@@ -275,8 +275,25 @@ async function loadDB(): Promise<any> {
   }
 
   if (!localData) {
-    localData = getInitialData();
-    fs.writeFileSync(DB_PATH, JSON.stringify(localData, null, 2), 'utf-8');
+    const projectDbPath = path.join(process.cwd(), 'data-db.json');
+    if (fs.existsSync(projectDbPath)) {
+      try {
+        console.log('Initializing temporary database from project data-db.json');
+        localData = JSON.parse(fs.readFileSync(projectDbPath, 'utf-8'));
+      } catch (e) {
+        console.error('Error reading project data-db.json:', e);
+      }
+    }
+    
+    if (!localData) {
+      localData = getInitialData();
+    }
+    
+    try {
+      fs.writeFileSync(DB_PATH, JSON.stringify(localData, null, 2), 'utf-8');
+    } catch (e) {
+      console.error('Error writing initialized database to DB_PATH:', e);
+    }
   }
 
   if (localData && localData.adminSettings && (!localData.adminSettings.users || !Array.isArray(localData.adminSettings.users))) {

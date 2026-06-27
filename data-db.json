@@ -93,7 +93,7 @@
         "الحجم": "1 لتر (1000 مل)",
         "العطر": "ليمون مركز"
       },
-      "stock": 120
+      "stock": 117
     },
     {
       "id": "fine-tissues-3pack",
@@ -125,7 +125,51 @@
     "subtitle": "نوفر لكم أكبر تشكيلة من مساحيق الغسيل، مطهرات ديتول، صابون المواعين، والورقيات والمناديل المعقمة بأقصى توفير وأسرع خدمة شحن لباب بيتك!",
     "image": "https://images.unsplash.com/photo-1628177142898-93e36e4e3a50?auto=format&fit=crop&q=80&w=1200"
   },
-  "orders": [],
+  "orders": [
+    {
+      "orderId": "الشوربجي 01",
+      "items": [
+        {
+          "product": {
+            "id": "pril-dishwash-1l",
+            "title": "بريل سائل غسيل الأطباق الفائق وقاهر الدهون بالليمون - 1 لتر",
+            "description": "بريل الأصلي بقوة خمس طبقات لمعان لإزالة الأوساخ المستعصية والدهون الجافة من الصحون والحلل دون بذل مجهود شاق، آمن تماماً على اليدين ويمنح المطبخ رائحة ليمون برّاقة ونظافة لا تضاهى.",
+            "price": 60,
+            "discountPrice": 48,
+            "discountPercentage": 20,
+            "image": "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&q=80&w=800",
+            "images": [
+              "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&q=80&w=800"
+            ],
+            "category": "soap_liquid",
+            "brand": "بريل",
+            "rating": 4.6,
+            "reviewsCount": 88,
+            "featured": true,
+            "isSpecialOffer": false,
+            "specs": {
+              "الحجم": "1 لتر (1000 مل)",
+              "العطر": "ليمون مركز"
+            },
+            "stock": 120
+          },
+          "quantity": 3
+        }
+      ],
+      "customerInfo": {
+        "name": "a",
+        "phone": "01203680727",
+        "governorate": "مدينة الإسماعيلية (وسط البلد)",
+        "city": "أوردر شخصي (لا يوجد اسم محل)",
+        "address": "wsa"
+      },
+      "subtotal": 144,
+      "shipping": 0,
+      "total": 144,
+      "date": "السبت، ٢٧ يونيو ٢٠٢٦ في ٠١:١٧ ص",
+      "dateKey": "06/27/2026"
+    }
+  ],
   "adminSettings": {
     "username": "admin",
     "password": "123",

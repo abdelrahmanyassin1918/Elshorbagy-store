@@ -30,7 +30,7 @@ export default function AdminView({
 }: AdminViewProps) {
   // Login credentials state
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return sessionStorage.getItem('kenzz_admin_token') === 'validated_sess_token_secure';
+    return sessionStorage.getItem('elshorbagy_admin_token') === 'validated_sess_token_secure';
   });
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -43,7 +43,7 @@ export default function AdminView({
 
   // Multi-user state
   const [adminDisplayName, setAdminDisplayName] = useState<string>(() => {
-    return sessionStorage.getItem('kenzz_admin_user_name') || 'المدير';
+    return sessionStorage.getItem('elshorbagy_admin_user_name') || 'المدير';
   });
   const [adminUsers, setAdminUsers] = useState<{ username: string; password: string; name: string }[]>([]);
   const [isAdminUsersLoading, setIsAdminUsersLoading] = useState(false);
@@ -615,9 +615,9 @@ ${itemsBrief}
 
       if (res.ok) {
         const data = await res.json();
-        sessionStorage.setItem('kenzz_admin_token', data.token);
+        sessionStorage.setItem('elshorbagy_admin_token', data.token);
         const displayName = data.user?.name || data.user?.username || 'المدير';
-        sessionStorage.setItem('kenzz_admin_user_name', displayName);
+        sessionStorage.setItem('elshorbagy_admin_user_name', displayName);
         setAdminDisplayName(displayName);
         setIsAuthenticated(true);
         onRefreshData();
@@ -633,8 +633,8 @@ ${itemsBrief}
   };
 
   const handleLogout = () => {
-    sessionStorage.removeItem('kenzz_admin_token');
-    sessionStorage.removeItem('kenzz_admin_user_name');
+    sessionStorage.removeItem('elshorbagy_admin_token');
+    sessionStorage.removeItem('elshorbagy_admin_user_name');
     setIsAuthenticated(false);
     setUsername('');
     setPassword('');

@@ -2,8 +2,9 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
-import { initializeApp, getApps } from 'firebase-admin/app';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import { GoogleAuth } from 'google-auth-library';
 
 // Type definitions to keep typescript compiled output clean
 interface Product {
@@ -47,7 +48,8 @@ interface OrderDetails {
 }
 
 const PORT = Number(process.env.PORT) || 3000;
-const DB_PATH = path.join(process.cwd(), 'data-db.json');
+const isVercel = !!process.env.VERCEL;
+const DB_PATH = isVercel ? path.join('/tmp', 'data-db.json') : path.join(process.cwd(), 'data-db.json');
 
 // Ensure db directory or file exists with preseeded data
 const getInitialData = () => {
@@ -178,23 +180,46 @@ const getInitialData = () => {
 // Database utility functions
 let cachedDB: any = null;
 let firestoreDb: any = null;
+let isFirestoreDisabled = false;
 
 // Initialize Firebase Admin safely
 try {
   const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
+  const isGoogleCloud = !!(process.env.K_SERVICE || process.env.GOOGLE_CLOUD_PROJECT || process.env.GOOGLE_APPLICATION_CREDENTIALS);
+  const isVercel = !!process.env.VERCEL;
+  
   if (fs.existsSync(configPath)) {
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-    let app;
-    if (getApps().length === 0) {
-      app = initializeApp({
-        projectId: config.projectId
-      });
+    if (!isGoogleCloud && !isVercel) {
+      console.log('⚠️ Running locally outside Google Cloud. Disabling Firestore to prevent credential crashes. Using local JSON database (data-db.json).');
+      isFirestoreDisabled = true;
+      firestoreDb = null;
     } else {
-      app = getApps()[0];
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      let app;
+      if (getApps().length === 0) {
+        let credential;
+        const saEnv = process.env.FIREBASE_SERVICE_ACCOUNT || process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+        if (saEnv) {
+          try {
+            const serviceAccount = JSON.parse(saEnv);
+            credential = cert(serviceAccount);
+            console.log('Using Firebase service account credentials from environment variables.');
+          } catch (e: any) {
+            console.error('Failed to parse Firebase service account JSON from environment:', e.message);
+          }
+        }
+        
+        app = initializeApp({
+          projectId: config.projectId,
+          ...(credential ? { credential } : {})
+        });
+      } else {
+        app = getApps()[0];
+      }
+      const dbId = config.firestoreDatabaseId || '(default)';
+      firestoreDb = dbId && dbId !== '(default)' ? getFirestore(app, dbId) : getFirestore(app);
+      console.log('Firebase Admin initialized successfully with database:', dbId);
     }
-    const dbId = config.firestoreDatabaseId || '(default)';
-    firestoreDb = dbId && dbId !== '(default)' ? getFirestore(app, dbId) : getFirestore(app);
-    console.log('Firebase Admin initialized successfully with database:', dbId);
   } else {
     console.log('No firebase-applet-config.json found, running on local filesystem only.');
   }
@@ -256,7 +281,8 @@ async function loadDB(): Promise<any> {
     ];
   }
 
-  // If Firestore is available, try to fetch/sync from it
+  // If Firestore is available, load from it. Local offline checks are done at initialization.
+
   if (firestoreDb) {
     try {
       console.log('Fetching state from Firestore...');
@@ -357,9 +383,10 @@ async function saveDB(data: any) {
   }
 }
 
+const app = express();
+app.use(express.json());
+
 async function startServer() {
-  const app = express();
-  app.use(express.json());
 
   // API Endpoints:
   
@@ -746,13 +773,13 @@ async function startServer() {
   }
 
   // Vite single-mode handler
-  if (process.env.NODE_ENV !== 'production') {
+  if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
-  } else {
+  } else if (!process.env.VERCEL) {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
@@ -760,9 +787,19 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server loaded standard on http://localhost:${PORT}`);
-  });
+  if (!process.env.VERCEL) {
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server loaded standard on http://localhost:${PORT}`);
+    });
+  }
 }
 
-startServer();
+// Start the server if not running on Vercel
+if (!process.env.VERCEL) {
+  startServer();
+} else {
+  // On Vercel, pre-warm cache on first invocation
+  loadDB().catch(err => console.error('Error loading DB on Vercel initialization:', err));
+}
+
+export default app;

@@ -21,7 +21,7 @@ export default function App() {
   // User Role State: 'user' | 'owner' (default to 'user' unless logged in previously)
   const [userRole, setUserRole] = useState<'user' | 'owner'>(() => {
     if (typeof window !== 'undefined') {
-      const token = sessionStorage.getItem('kenzz_admin_token');
+      const token = sessionStorage.getItem('elshorbagy_admin_token');
       return token === 'validated_sess_token_secure' ? 'owner' : 'user';
     }
     return 'user';
@@ -30,10 +30,10 @@ export default function App() {
   // Entry gate status: true if they have chosen customer or logged in as owner
   const [hasEntered, setHasEntered] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
-      const token = sessionStorage.getItem('kenzz_admin_token');
+      const token = sessionStorage.getItem('elshorbagy_admin_token');
       if (token === 'validated_sess_token_secure') return true;
       
-      const savedChoice = sessionStorage.getItem('kenzz_gate_entered');
+      const savedChoice = sessionStorage.getItem('elshorbagy_gate_entered');
       return savedChoice === 'true';
     }
     return false;
@@ -49,9 +49,9 @@ export default function App() {
 
   // Switching methods
   const handleSwitchToUser = () => {
-    sessionStorage.removeItem('kenzz_admin_token');
-    sessionStorage.removeItem('kenzz_admin_user_name');
-    sessionStorage.removeItem('kenzz_gate_entered');
+    sessionStorage.removeItem('elshorbagy_admin_token');
+    sessionStorage.removeItem('elshorbagy_admin_user_name');
+    sessionStorage.removeItem('elshorbagy_gate_entered');
     setUserRole('user');
     setHasEntered(false);
     handleNavigate('home');
@@ -82,10 +82,10 @@ export default function App() {
 
       if (res.ok) {
         const data = await res.json();
-        sessionStorage.setItem('kenzz_admin_token', data.token);
+        sessionStorage.setItem('elshorbagy_admin_token', data.token);
         const displayName = data.user?.name || data.user?.username || 'المدير';
-        sessionStorage.setItem('kenzz_admin_user_name', displayName);
-        sessionStorage.setItem('kenzz_gate_entered', 'true');
+        sessionStorage.setItem('elshorbagy_admin_user_name', displayName);
+        sessionStorage.setItem('elshorbagy_gate_entered', 'true');
         setUserRole('owner');
         setHasEntered(true);
         setShowOwnerLoginModal(false);
@@ -163,7 +163,7 @@ export default function App() {
   // Cart State (Initialized from localStorage helper)
   const [cart, setCart] = useState<CartItem[]>(() => {
     try {
-      const stored = localStorage.getItem('kenzz_cart');
+      const stored = localStorage.getItem('elshorbagy_cart');
       return stored ? JSON.parse(stored) : [];
     } catch (e) {
       console.error('Error loading cart state from localStorage', e);
@@ -203,7 +203,7 @@ export default function App() {
   // Sync cart modifications to localStorage automatically
   useEffect(() => {
     try {
-      localStorage.setItem('kenzz_cart', JSON.stringify(cart));
+      localStorage.setItem('elshorbagy_cart', JSON.stringify(cart));
     } catch (e) {
       console.error('Failed to persist cart updates to localStorage', e);
     }
@@ -380,7 +380,7 @@ export default function App() {
                   {/* Option 1: Customer */}
                   <button
                     onClick={() => {
-                      sessionStorage.setItem('kenzz_gate_entered', 'true');
+                      sessionStorage.setItem('elshorbagy_gate_entered', 'true');
                       setHasEntered(true);
                       setUserRole('user');
                       handleNavigate('home');

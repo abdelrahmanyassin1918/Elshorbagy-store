@@ -1,7 +1,7 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
-import { createServer as createViteServer } from 'vite';
+
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { GoogleAuth } from 'google-auth-library';
@@ -794,6 +794,7 @@ app.use(express.json());
 
     // Vite single-mode handler
     if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+      const { createServer: createViteServer } = await import('vite');
       const vite = await createViteServer({
         server: { middlewareMode: true },
         appType: 'spa',

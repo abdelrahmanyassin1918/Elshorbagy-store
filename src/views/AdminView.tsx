@@ -81,6 +81,18 @@ export default function AdminView({
   const [editingAdminOldPasswordConfirm, setEditingAdminOldPasswordConfirm] = useState('');
   const [showEditingPassword, setShowEditingPassword] = useState(false);
 
+  // User Management State Messages & Double Delete Confirm
+  const [userTabMsg, setUserTabMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [deletingIndexConfirm, setDeletingIndexConfirm] = useState<number | null>(null);
+  const [editAdminError, setEditAdminError] = useState<string>('');
+
+  const showUserMessage = (type: 'success' | 'error', text: string) => {
+    setUserTabMsg({ type, text });
+    setTimeout(() => {
+      setUserTabMsg(null);
+    }, 7000);
+  };
+
   // State to filter and only show out of stock items
   const [onlyShowOutOfStock, setOnlyShowOutOfStock] = useState<boolean>(false);
 
@@ -975,7 +987,9 @@ ${itemsBrief}
                 {showPassword ? <FaEyeSlash className="text-sm" /> : <FaEye className="text-sm" />}
               </button>
             </div>
-            <p className="text-[10px] text-gray-400 font-semibold mt-1">الرمز الافتراضي: 123</p>
+            <p className="text-[10px] text-amber-600 font-extrabold mt-1.5 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200 text-right">
+              💡 الحساب الافتراضي للدخول: اسم المستخدم <span className="font-mono text-gray-700 bg-white px-1 py-0.5 rounded border border-gray-200">admin</span> وكلمة المرور <span className="font-mono text-gray-700 bg-white px-1 py-0.5 rounded border border-gray-200">123</span>
+            </p>
           </div>
 
           <button
@@ -2251,12 +2265,25 @@ ${itemsBrief}
                 </p>
               </div>
               <button
-                onClick={fetchAdminUsers}
+                onClick={() => {
+                  fetchAdminUsers();
+                  showUserMessage('success', 'تم تحديث قائمة المشرفين بنجاح! 🔄');
+                }}
                 className="px-3 py-1.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 text-xs font-bold rounded-lg transition-colors cursor-pointer self-start md:self-auto"
               >
                 تحديث قائمة المستخدمين 🔄
               </button>
             </div>
+
+            {userTabMsg && (
+              <div className={`mb-6 p-4 rounded-xl text-xs font-black text-center border animate-fade-in ${
+                userTabMsg.type === 'success' 
+                  ? 'bg-green-50 border-green-200 text-green-700' 
+                  : 'bg-red-50 border-red-200 text-red-600'
+              }`}>
+                {userTabMsg.text}
+              </div>
+            )}
 
             {isAdminUsersLoading ? (
               <div className="text-center py-12 text-xs font-bold text-gray-400">
@@ -2297,47 +2324,77 @@ ${itemsBrief}
                                 setEditingAdminUsername(u.username || '');
                                 setEditingAdminNewPassword(u.password || '');
                                 setEditingAdminOldPasswordConfirm('');
+                                setEditAdminError('');
                               }}
                               className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-100 rounded-lg transition-colors cursor-pointer text-[10px] font-black"
                               title="تعديل بيانات الحساب"
                             >
                               تعديل الحساب ⚙️
                             </button>
-                            <button
-                              onClick={async () => {
-                                if (adminUsers.length <= 1) {
-                                  alert('لا يمكنك حذف المستخدم الوحيد! يجب أن يبقى مستخدم واحد على الأقل للوصول للوحة التحكم.');
-                                  return;
-                                }
-                                if (isCurrentUser) {
-                                  alert('لا يمكنك حذف الحساب الخاص بك أثناء تسجيل الدخول به حالياً!');
-                                  return;
-                                }
-                                if (window.confirm(`هل أنت متأكد من رغبتك في حذف حساب المشرف "${u.name || u.username}" نهائياً؟`)) {
-                                  const updatedUsers = adminUsers.filter((_, idx) => idx !== i);
-                                  try {
-                                    const res = await fetch('/api/admin/users', {
-                                      method: 'POST',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ users: updatedUsers })
-                                    });
-                                    if (res.ok) {
-                                      const data = await res.json();
-                                      setAdminUsers(data.users || []);
-                                      alert('تم حذف المستخدم بنجاح! 🎉');
-                                    } else {
-                                      alert('فشل في حذف المستخدم.');
+                            {deletingIndexConfirm === i ? (
+                              <div className="flex items-center justify-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    setDeletingIndexConfirm(null);
+                                    if (adminUsers.length <= 1) {
+                                      showUserMessage('error', 'لا يمكنك حذف المستخدم الوحيد! يجب أن يبقى مستخدم واحد على الأقل.');
+                                      return;
                                     }
-                                  } catch (err) {
-                                    alert('خطأ في الاتصال بالخادم.');
+                                    if (isCurrentUser) {
+                                      showUserMessage('error', 'لا يمكنك حذف الحساب الخاص بك أثناء تسجيل الدخول به حالياً!');
+                                      return;
+                                    }
+                                    const updatedUsers = adminUsers.filter((_, idx) => idx !== i);
+                                    try {
+                                      const res = await fetch('/api/admin/users', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ users: updatedUsers })
+                                      });
+                                      if (res.ok) {
+                                        const data = await res.json();
+                                        setAdminUsers(data.users || []);
+                                        showUserMessage('success', 'تم حذف حساب المشرف بنجاح! 🎉');
+                                      } else {
+                                        showUserMessage('error', 'فشل في حذف حساب المشرف.');
+                                      }
+                                    } catch (err) {
+                                      showUserMessage('error', 'خطأ في الاتصال بالخادم أثناء الحذف.');
+                                    }
+                                  }}
+                                  className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors cursor-pointer text-[10px] font-black shadow-xs"
+                                >
+                                  تأكيد الحذف ⚠️
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setDeletingIndexConfirm(null)}
+                                  className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors cursor-pointer text-[10px] font-black"
+                                >
+                                  تراجع
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (adminUsers.length <= 1) {
+                                    showUserMessage('error', 'لا يمكنك حذف المستخدم الوحيد! يجب أن يبقى مستخدم واحد على الأقل.');
+                                    return;
                                   }
-                                }
-                              }}
-                              className="p-1.5 bg-red-50 hover:bg-red-100 text-red-500 border border-red-100 rounded-lg transition-colors cursor-pointer text-[10px] font-black"
-                              title="حذف الحساب"
-                            >
-                              حذف الحساب 🗑️
-                            </button>
+                                  if (isCurrentUser) {
+                                    showUserMessage('error', 'لا يمكنك حذف الحساب الخاص بك أثناء تسجيل الدخول به حالياً!');
+                                    return;
+                                  }
+                                  setDeletingIndexConfirm(i);
+                                }}
+                                className="p-1.5 bg-red-50 hover:bg-red-100 text-red-500 border border-red-100 rounded-lg transition-colors cursor-pointer text-[10px] font-black"
+                                title="حذف الحساب"
+                              >
+                                حذف الحساب 🗑️
+                              </button>
+                            )}
                           </td>
                         </tr>
                       );
@@ -2352,14 +2409,14 @@ ${itemsBrief}
               <form
                 onSubmit={async (e) => {
                   e.preventDefault();
-                  if (!newAdminUsername || !newAdminPassword || !newAdminName) {
-                    alert('برجاء ملء جميع الحقول المطلوبة.');
+                  if (!newAdminUsername.trim() || !newAdminPassword.trim() || !newAdminName.trim()) {
+                    showUserMessage('error', 'برجاء ملء جميع الحقول المطلوبة.');
                     return;
                   }
 
-                  // Check if username already exists
-                  if (adminUsers.some(u => u.username.toLowerCase() === newAdminUsername.toLowerCase())) {
-                    alert('اسم المستخدم هذا مستخدم بالفعل! برجاء اختيار اسم مستخدم فريد.');
+                  // Check if username already exists (case insensitive)
+                  if (adminUsers.some(u => (u.username || '').toLowerCase() === newAdminUsername.trim().toLowerCase())) {
+                    showUserMessage('error', 'اسم المستخدم هذا مستخدم بالفعل! برجاء اختيار اسم مستخدم فريد.');
                     return;
                   }
 
@@ -2383,12 +2440,12 @@ ${itemsBrief}
                       setNewAdminUsername('');
                       setNewAdminPassword('');
                       setNewAdminName('');
-                      alert('تمت إضافة المشرف الجديد بنجاح! 🎉 أصبح بإمكانه الآن تسجيل الدخول باستخدام حسابه الخاص.');
+                      showUserMessage('success', 'تمت إضافة المشرف الجديد بنجاح! 🎉 أصبح بإمكانه تسجيل الدخول الآن.');
                     } else {
-                      alert('فشل في إضافة المشرف الجديد.');
+                      showUserMessage('error', 'فشل في إضافة المشرف الجديد.');
                     }
                   } catch (err) {
-                    alert('خطأ في الاتصال بالخادم.');
+                    showUserMessage('error', 'خطأ في الاتصال بالخادم أثناء إضافة المشرف.');
                   }
                 }}
                 className="grid grid-cols-1 md:grid-cols-3 gap-4"
@@ -2460,24 +2517,26 @@ ${itemsBrief}
                 <form
                   onSubmit={async (e) => {
                     e.preventDefault();
+                    setEditAdminError('');
+
                     if (!editingAdminName.trim() || !editingAdminUsername.trim()) {
-                      alert('برجاء ملء الحقول المطلوبة.');
+                      setEditAdminError('برجاء ملء جميع الحقول المطلوبة.');
                       return;
                     }
 
                     // Verify the old password matches to authorize change
                     const currentAdmin = adminUsers[editingAdminIndex];
                     if (editingAdminOldPasswordConfirm !== currentAdmin.password) {
-                      alert('❌ كلمة المرور القديمة غير صحيحة! لا يمكن تطبيق التعديلات بدون إدخال كلمة المرور القديمة بشكل صحيح.');
+                      setEditAdminError('❌ كلمة المرور القديمة غير صحيحة! يرجى إدخال كلمة المرور القديمة بشكل صحيح.');
                       return;
                     }
 
                     // Check if username has changed and if the new one is already taken by another admin
                     const isUsernameTaken = adminUsers.some(
-                      (u, idx) => idx !== editingAdminIndex && u.username.toLowerCase() === editingAdminUsername.trim().toLowerCase()
+                      (u, idx) => idx !== editingAdminIndex && (u.username || '').toLowerCase() === editingAdminUsername.trim().toLowerCase()
                     );
                     if (isUsernameTaken) {
-                      alert('⚠️ اسم المستخدم الجديد هذا مستخدم بالفعل من قبل مشرف آخر! برجاء اختيار اسم فريد.');
+                      setEditAdminError('⚠️ اسم المستخدم الجديد مستخدم بالفعل من قبل مشرف آخر! يرجى اختيار اسم فريد.');
                       return;
                     }
 
@@ -2511,16 +2570,21 @@ ${itemsBrief}
                           setAdminDisplayName(newDisplayName);
                         }
                         
-                        alert('تم تعديل بيانات الحساب بنجاح! 🎉');
+                        showUserMessage('success', 'تم تعديل بيانات حساب المشرف بنجاح! 🎉');
                       } else {
-                        alert('فشل في تعديل بيانات الحساب.');
+                        setEditAdminError('فشل في تعديل بيانات الحساب.');
                       }
                     } catch (err) {
-                      alert('خطأ في الاتصال بالخادم.');
+                      setEditAdminError('خطأ في الاتصال بالخادم أثناء حفظ التعديل.');
                     }
                   }}
                   className="space-y-4 text-right"
                 >
+                  {editAdminError && (
+                    <div className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-xs font-bold text-center animate-fade-in">
+                      {editAdminError}
+                    </div>
+                  )}
                   <div>
                     <label className="block text-xs font-black text-gray-700 mb-1">الاسم الكامل للمشرف 👤</label>
                     <input
@@ -2558,9 +2622,9 @@ ${itemsBrief}
                       <button
                         type="button"
                         onClick={() => setShowEditingPassword(!showEditingPassword)}
-                        className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 hover:text-gray-600 cursor-pointer"
+                        className="absolute inset-y-0 left-0 pl-3 pr-2 flex items-center text-gray-400 hover:text-gray-600 cursor-pointer"
                       >
-                        {showEditingPassword ? '👁️' : '👁️‍عون'}
+                        {showEditingPassword ? <FaEyeSlash className="text-xs text-gray-500" /> : <FaEye className="text-xs text-gray-500" />}
                       </button>
                     </div>
                   </div>

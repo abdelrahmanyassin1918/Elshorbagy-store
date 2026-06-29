@@ -544,6 +544,9 @@ export default function App() {
                         {showPassword ? <FaEyeSlash className="w-4 h-4 text-gray-500" /> : <FaEye className="w-4 h-4 text-gray-500" />}
                       </button>
                     </div>
+                    <p className="text-[10px] text-amber-600 font-extrabold mt-1.5 text-right bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200">
+                      💡 الحساب الافتراضي للدخول: اسم المستخدم <span className="font-mono text-gray-700 bg-white px-1 py-0.5 rounded border border-gray-200">admin</span> وكلمة المرور <span className="font-mono text-gray-700 bg-white px-1 py-0.5 rounded border border-gray-200">123</span>
+                    </p>
                   </div>
 
                   <div className="flex gap-2 pt-2">

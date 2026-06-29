@@ -728,12 +728,24 @@ app.use(express.json());
 
   // 10. Admin Verify Credentials login flow
   app.post('/api/admin/login', async (req, res) => {
-    const { username, password } = req.body;
+    let { username, password } = req.body;
+    
+    // Normalize and trim inputs to prevent copy-paste and casing issues
+    const normalizedUsername = typeof username === 'string' ? username.trim().toLowerCase() : '';
+    const trimmedPassword = typeof password === 'string' ? password.trim() : '';
+
+    if (!normalizedUsername || !trimmedPassword) {
+      return res.status(400).json({ error: 'برجاء إدخال اسم المستخدم وكلمة المرور!' });
+    }
+
     const db = await loadDB();
     
     // Ensure we have a valid users array
     const users = db.adminSettings.users || [];
-    const matchedUser = users.find((u: any) => u.username === username && u.password === password);
+    const matchedUser = users.find((u: any) => 
+      (u.username || '').trim().toLowerCase() === normalizedUsername && 
+      (u.password || '').trim() === trimmedPassword
+    );
 
     if (matchedUser) {
       res.json({ 
@@ -745,8 +757,8 @@ app.use(express.json());
         }
       });
     } else if (
-      (username === 'admin' && password === '123') ||
-      (username === db.adminSettings.username && password === db.adminSettings.password)
+      (normalizedUsername === 'admin' && trimmedPassword === '123') ||
+      (db.adminSettings.username && db.adminSettings.username.trim().toLowerCase() === normalizedUsername && db.adminSettings.password && db.adminSettings.password.trim() === trimmedPassword)
     ) {
       res.json({ 
         success: true, 

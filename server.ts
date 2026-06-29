@@ -365,7 +365,8 @@ async function loadDB(): Promise<any> {
         await seedFirestore(localData);
       }
     } catch (err) {
-      console.error('Firestore loading failed, falling back to local storage:', err);
+      console.error('Firestore loading failed, falling back to local storage and disabling Firestore:', err);
+      firestoreDb = null;
     }
   }
 
@@ -730,15 +731,19 @@ app.use(express.json());
   app.post('/api/admin/login', async (req, res) => {
     let { username, password } = req.body;
     
+    console.log('[DEBUG LOGIN] Incoming login request:', { username, password });
+
     // Normalize and trim inputs to prevent copy-paste and casing issues
     const normalizedUsername = typeof username === 'string' ? username.trim().toLowerCase() : '';
     const trimmedPassword = typeof password === 'string' ? password.trim() : '';
 
     if (!normalizedUsername || !trimmedPassword) {
+      console.log('[DEBUG LOGIN] Missing username or password');
       return res.status(400).json({ error: 'برجاء إدخال اسم المستخدم وكلمة المرور!' });
     }
 
     const db = await loadDB();
+    console.log('[DEBUG LOGIN] Current adminSettings in DB:', JSON.stringify(db.adminSettings, null, 2));
     
     // Ensure we have a valid users array
     const users = db.adminSettings.users || [];
@@ -748,6 +753,7 @@ app.use(express.json());
     );
 
     if (matchedUser) {
+      console.log('[DEBUG LOGIN] Matched custom admin user:', matchedUser.username);
       res.json({ 
         success: true, 
         token: 'validated_sess_token_secure',
@@ -760,6 +766,7 @@ app.use(express.json());
       (normalizedUsername === 'admin' && trimmedPassword === '123') ||
       (db.adminSettings.username && db.adminSettings.username.trim().toLowerCase() === normalizedUsername && db.adminSettings.password && db.adminSettings.password.trim() === trimmedPassword)
     ) {
+      console.log('[DEBUG LOGIN] Matched default or primary admin credentials');
       res.json({ 
         success: true, 
         token: 'validated_sess_token_secure',
@@ -769,6 +776,7 @@ app.use(express.json());
         }
       });
     } else {
+      console.log('[DEBUG LOGIN] Login credentials did not match any user.');
       res.status(401).json({ error: 'اسم المستخدم أو كلمة المرور غير صحيحة!' });
     }
   });

@@ -189,8 +189,13 @@ try {
   const isVercel = !!process.env.VERCEL;
   
   if (fs.existsSync(configPath)) {
+    const saEnv = process.env.FIREBASE_SERVICE_ACCOUNT || process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
     if (!isGoogleCloud && !isVercel) {
       console.log('⚠️ Running locally outside Google Cloud. Disabling Firestore to prevent credential crashes. Using local JSON database (data-db.json).');
+      isFirestoreDisabled = true;
+      firestoreDb = null;
+    } else if (isVercel && !saEnv) {
+      console.log('⚠️ Running on Vercel without Firebase credentials. Disabling Firestore to prevent crashes. Using local JSON database (data-db.json).');
       isFirestoreDisabled = true;
       firestoreDb = null;
     } else {
@@ -199,7 +204,6 @@ try {
       if (getApps().length === 0) {
         let credential;
         let projectId = config.projectId;
-        const saEnv = process.env.FIREBASE_SERVICE_ACCOUNT || process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
         if (saEnv) {
           try {
             const serviceAccount = JSON.parse(saEnv);

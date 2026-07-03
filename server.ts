@@ -4,7 +4,6 @@ import fs from 'fs';
 
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import { GoogleAuth } from 'google-auth-library';
 
 // Type definitions to keep typescript compiled output clean
 interface Product {
@@ -190,7 +189,7 @@ try {
   
   if (fs.existsSync(configPath)) {
     const saEnv = process.env.FIREBASE_SERVICE_ACCOUNT || process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
-    if (!isGoogleCloud && !isVercel) {
+    if (!isGoogleCloud && !isVercel && !saEnv) {
       console.log('⚠️ Running locally outside Google Cloud. Disabling Firestore to prevent credential crashes. Using local JSON database (data-db.json).');
       isFirestoreDisabled = true;
       firestoreDb = null;

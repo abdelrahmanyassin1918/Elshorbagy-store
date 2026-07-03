@@ -183,52 +183,91 @@ let isFirestoreDisabled = false;
 
 // Initialize Firebase Admin safely
 try {
-  const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
+  let config: any = null;
+  const configPaths = [
+    path.join(process.cwd(), 'firebase-applet-config.json'),
+    path.join(process.cwd(), '..', 'firebase-applet-config.json'),
+    path.join(__dirname, 'firebase-applet-config.json'),
+    path.join(__dirname, '..', 'firebase-applet-config.json')
+  ];
+  
+  for (const p of configPaths) {
+    if (fs.existsSync(p)) {
+      try {
+        config = JSON.parse(fs.readFileSync(p, 'utf-8'));
+        console.log('Loaded firebase config from:', p);
+        break;
+      } catch (e) {}
+    }
+  }
+
+  // Fallback to hardcoded configuration in case Vercel doesn't bundle the config file
+  if (!config) {
+    console.log('⚠️ Could not physically find firebase-applet-config.json. Using hardcoded workspace config.');
+    config = {
+      projectId: process.env.FIREBASE_PROJECT_ID || "elshorbagy-store",
+      firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || (process.env.VERCEL ? "(default)" : "ai-studio-ef7eeffb-99a4-4341-a6aa-88b74a031ad1")
+    };
+  }
+
   const isGoogleCloud = !!(process.env.K_SERVICE || process.env.GOOGLE_CLOUD_PROJECT || process.env.GOOGLE_APPLICATION_CREDENTIALS);
   const isVercel = !!process.env.VERCEL;
+  const saEnv = process.env.FIREBASE_SERVICE_ACCOUNT || process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON || process.env.GOOGLE_APPLICATION_CREDENTIALS;
   
-  if (fs.existsSync(configPath)) {
-    const saEnv = process.env.FIREBASE_SERVICE_ACCOUNT || process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
-    if (!isGoogleCloud && !isVercel && !saEnv) {
-      console.log('⚠️ Running locally outside Google Cloud. Disabling Firestore to prevent credential crashes. Using local JSON database (data-db.json).');
-      isFirestoreDisabled = true;
-      firestoreDb = null;
-    } else if (isVercel && !saEnv) {
-      console.log('⚠️ Running on Vercel without Firebase credentials. Disabling Firestore to prevent crashes. Using local JSON database (data-db.json).');
-      isFirestoreDisabled = true;
-      firestoreDb = null;
-    } else {
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-      let app;
-      if (getApps().length === 0) {
-        let credential;
-        let projectId = config.projectId;
-        if (saEnv) {
-          try {
-            const serviceAccount = JSON.parse(saEnv);
+  if (!isGoogleCloud && !isVercel && !saEnv) {
+    console.log('⚠️ Running locally outside Google Cloud. Disabling Firestore to prevent credential crashes. Using local JSON database (data-db.json).');
+    isFirestoreDisabled = true;
+    firestoreDb = null;
+  } else if (isVercel && !saEnv) {
+    console.log('⚠️ Running on Vercel without Firebase credentials. Disabling Firestore to prevent crashes. Using local JSON database (data-db.json).');
+    isFirestoreDisabled = true;
+    firestoreDb = null;
+  } else {
+    let app;
+    if (getApps().length === 0) {
+      let credential;
+      let projectId = process.env.FIREBASE_PROJECT_ID || config.projectId;
+      if (saEnv) {
+        try {
+          let serviceAccount: any = null;
+          if (saEnv.trim().startsWith('{')) {
+            serviceAccount = JSON.parse(saEnv);
+          } else if (fs.existsSync(saEnv)) {
+            serviceAccount = JSON.parse(fs.readFileSync(saEnv, 'utf-8'));
+          } else {
+            // Try base64 decoded if they encoded it
+            try {
+              const decoded = Buffer.from(saEnv, 'base64').toString('utf-8');
+              if (decoded.trim().startsWith('{')) {
+                serviceAccount = JSON.parse(decoded);
+              }
+            } catch (e) {}
+          }
+
+          if (serviceAccount) {
             credential = cert(serviceAccount);
             if (serviceAccount.project_id) {
               projectId = serviceAccount.project_id;
             }
-            console.log('Using Firebase service account credentials from environment variables.');
-          } catch (e: any) {
-            console.error('Failed to parse Firebase service account JSON from environment:', e.message);
+            console.log('Using Firebase service account credentials from environment variables. Project:', projectId);
           }
+        } catch (e: any) {
+          console.error('Failed to parse Firebase service account JSON from environment:', e.message);
         }
-        
-        app = initializeApp({
-          projectId: projectId,
-          ...(credential ? { credential } : {})
-        });
-      } else {
-        app = getApps()[0];
       }
-      const dbId = config.firestoreDatabaseId || '(default)';
-      firestoreDb = dbId && dbId !== '(default)' ? getFirestore(app, dbId) : getFirestore(app);
-      console.log('Firebase Admin initialized successfully with database:', dbId);
+      
+      app = initializeApp({
+        projectId: projectId,
+        ...(credential ? { credential } : {})
+      });
+    } else {
+      app = getApps()[0];
     }
-  } else {
-    console.log('No firebase-applet-config.json found, running on local filesystem only.');
+    
+    // On Vercel, prioritize the standard (default) database unless they explicitly define FIREBASE_DATABASE_ID
+    const dbId = process.env.FIREBASE_DATABASE_ID || (isVercel ? "(default)" : config.firestoreDatabaseId) || "(default)";
+    firestoreDb = dbId && dbId !== '(default)' ? getFirestore(app, dbId) : getFirestore(app);
+    console.log('Firebase Admin initialized successfully with database:', dbId, 'for project:', app.options?.projectId || 'unknown');
   }
 } catch (error) {
   console.error('Firebase Admin initialization failed, relying on local filesystem:', error);

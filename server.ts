@@ -1,6 +1,10 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
@@ -201,17 +205,25 @@ try {
     }
   }
 
-  // Fallback to hardcoded configuration in case Vercel doesn't bundle the config file
+  // Override config parameters for Vercel/production environments to target user's custom elshorbagy-store project
+  if (isVercel || process.env.NODE_ENV === 'production') {
+    console.log('💡 Running on custom production/Vercel environment. Defaulting Firebase project to: elshorbagy-store');
+    config = {
+      projectId: process.env.FIREBASE_PROJECT_ID || "elshorbagy-store",
+      firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || "(default)"
+    };
+  }
+
+  // Fallback to hardcoded configuration in case Vercel doesn't bundle the config file and not captured above
   if (!config) {
     console.log('⚠️ Could not physically find firebase-applet-config.json. Using hardcoded workspace config.');
     config = {
       projectId: process.env.FIREBASE_PROJECT_ID || "elshorbagy-store",
-      firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || (process.env.VERCEL ? "(default)" : "ai-studio-ef7eeffb-99a4-4341-a6aa-88b74a031ad1")
+      firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || (isVercel ? "(default)" : "ai-studio-ef7eeffb-99a4-4341-a6aa-88b74a031ad1")
     };
   }
 
   const isGoogleCloud = !!(process.env.K_SERVICE || process.env.GOOGLE_CLOUD_PROJECT || process.env.GOOGLE_APPLICATION_CREDENTIALS);
-  const isVercel = !!process.env.VERCEL;
   const saEnv = process.env.FIREBASE_SERVICE_ACCOUNT || process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON || process.env.GOOGLE_APPLICATION_CREDENTIALS;
   
   if (!isGoogleCloud && !isVercel && !saEnv) {
@@ -230,26 +242,41 @@ try {
       if (saEnv) {
         try {
           let serviceAccount: any = null;
-          if (saEnv.trim().startsWith('{')) {
-            serviceAccount = JSON.parse(saEnv);
-          } else if (fs.existsSync(saEnv)) {
-            serviceAccount = JSON.parse(fs.readFileSync(saEnv, 'utf-8'));
+          let cleanSaEnv = saEnv.trim();
+
+          // Strip surrounding single or double quotes if added by Vercel UI
+          if (cleanSaEnv.startsWith('"') && cleanSaEnv.endsWith('"')) {
+            cleanSaEnv = cleanSaEnv.substring(1, cleanSaEnv.length - 1).trim();
+          } else if (cleanSaEnv.startsWith("'") && cleanSaEnv.endsWith("'")) {
+            cleanSaEnv = cleanSaEnv.substring(1, cleanSaEnv.length - 1).trim();
+          }
+
+          if (cleanSaEnv.startsWith('{')) {
+            serviceAccount = JSON.parse(cleanSaEnv);
+          } else if (fs.existsSync(cleanSaEnv)) {
+            serviceAccount = JSON.parse(fs.readFileSync(cleanSaEnv, 'utf-8'));
           } else {
             // Try base64 decoded if they encoded it
             try {
-              const decoded = Buffer.from(saEnv, 'base64').toString('utf-8');
-              if (decoded.trim().startsWith('{')) {
+              const decoded = Buffer.from(cleanSaEnv, 'base64').toString('utf-8').trim();
+              if (decoded.startsWith('{')) {
                 serviceAccount = JSON.parse(decoded);
               }
             } catch (e) {}
           }
 
           if (serviceAccount) {
+            // Crucial Vercel fix for private key newline replacement
+            if (serviceAccount.private_key && typeof serviceAccount.private_key === 'string') {
+              serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+            }
             credential = cert(serviceAccount);
             if (serviceAccount.project_id) {
               projectId = serviceAccount.project_id;
             }
             console.log('Using Firebase service account credentials from environment variables. Project:', projectId);
+          } else {
+            console.warn('⚠️ Could not parse credentials from FIREBASE_SERVICE_ACCOUNT. Running unauthenticated.');
           }
         } catch (e: any) {
           console.error('Failed to parse Firebase service account JSON from environment:', e.message);
@@ -265,7 +292,7 @@ try {
     }
     
     // On Vercel, prioritize the standard (default) database unless they explicitly define FIREBASE_DATABASE_ID
-    const dbId = process.env.FIREBASE_DATABASE_ID || (isVercel ? "(default)" : config.firestoreDatabaseId) || "(default)";
+    const dbId = process.env.FIREBASE_DATABASE_ID || config.firestoreDatabaseId || "(default)";
     firestoreDb = dbId && dbId !== '(default)' ? getFirestore(app, dbId) : getFirestore(app);
     console.log('Firebase Admin initialized successfully with database:', dbId, 'for project:', app.options?.projectId || 'unknown');
   }
@@ -298,6 +325,25 @@ async function seedFirestore(data: any) {
   } catch (err) {
     console.error('Failed to seed Firestore:', err);
   }
+}
+
+// Asynchronous timeout helper to prevent hanging database connections and timeouts
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallbackValue: T): Promise<T> {
+  let timeoutId: NodeJS.Timeout;
+  const timeoutPromise = new Promise<T>((resolve) => {
+    timeoutId = setTimeout(() => {
+      console.warn(`⚠️ Operation timed out after ${timeoutMs}ms. Falling back to local data.`);
+      resolve(fallbackValue);
+    }, timeoutMs);
+  });
+  
+  return Promise.race([
+    promise.then((res) => {
+      clearTimeout(timeoutId);
+      return res;
+    }),
+    timeoutPromise
+  ]);
 }
 
 // Read database with Firestore support and fallback
@@ -348,37 +394,52 @@ async function loadDB(): Promise<any> {
 
   if (firestoreDb) {
     try {
-      console.log('Fetching state from Firestore...');
+      console.log('Fetching state from Firestore (with 4s timeout)...');
       
-      // Load products
-      const productsSnap = await firestoreDb.collection('products').get();
+      // Load products with 4s timeout
+      const productsPromise = firestoreDb.collection('products').get();
+      const productsSnap = await withTimeout(productsPromise, 4000, null);
+      
+      if (!productsSnap) {
+        throw new Error('Firestore read timed out or failed');
+      }
+
       let productsList: any[] = [];
       productsSnap.forEach(doc => {
         productsList.push({ id: doc.id, ...doc.data() });
       });
 
-      // Load orders
-      const ordersSnap = await firestoreDb.collection('orders').get();
+      // Load orders with 4s timeout
+      const ordersPromise = firestoreDb.collection('orders').get();
+      const ordersSnap = await withTimeout(ordersPromise, 4000, null);
+      
       let ordersList: any[] = [];
-      ordersSnap.forEach(doc => {
-        ordersList.push(doc.data());
-      });
-      // Sort orders by timestamp descending locally
-      ordersList.sort((a, b) => {
-        return new Date(b.dateKey || 0).getTime() - new Date(a.dateKey || 0).getTime();
-      });
+      if (ordersSnap) {
+        ordersSnap.forEach(doc => {
+          ordersList.push(doc.data());
+        });
+        // Sort orders by timestamp descending locally
+        ordersList.sort((a, b) => {
+          return new Date(b.dateKey || 0).getTime() - new Date(a.dateKey || 0).getTime();
+        });
+      }
 
-      // Load settings (banner & admin)
-      const bannerDoc = await firestoreDb.collection('settings').doc('banner').get();
-      const adminDoc = await firestoreDb.collection('settings').doc('admin').get();
+      // Load settings (banner & admin) with 4s timeout
+      const bannerPromise = firestoreDb.collection('settings').doc('banner').get();
+      const adminPromise = firestoreDb.collection('settings').doc('admin').get();
+      
+      const [bannerDoc, adminDoc] = await Promise.all([
+        withTimeout(bannerPromise, 4000, null),
+        withTimeout(adminPromise, 4000, null)
+      ]);
 
       let banner = localData.banner;
-      if (bannerDoc.exists) {
+      if (bannerDoc && bannerDoc.exists) {
         banner = bannerDoc.data();
       }
 
       let adminSettings = localData.adminSettings;
-      if (adminDoc.exists) {
+      if (adminDoc && adminDoc.exists) {
         adminSettings = adminDoc.data() || {};
       }
       if (!adminSettings.users || !Array.isArray(adminSettings.users) || adminSettings.users.length === 0) {
@@ -403,7 +464,7 @@ async function loadDB(): Promise<any> {
         await seedFirestore(localData);
       }
     } catch (err) {
-      console.error('Firestore loading failed, falling back to local storage and disabling Firestore:', err);
+      console.error('Firestore loading failed, falling back to local storage and disabling Firestore for this lifecycle:', err);
       firestoreDb = null;
     }
   }

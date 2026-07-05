@@ -187,6 +187,7 @@ let isFirestoreDisabled = false;
 
 // Initialize Firebase Admin safely
 try {
+  const isVercel = !!process.env.VERCEL;
   let config: any = null;
   const configPaths = [
     path.join(process.cwd(), 'firebase-applet-config.json'),

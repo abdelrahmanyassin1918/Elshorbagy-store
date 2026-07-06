@@ -624,6 +624,23 @@ async function saveDB(data: any) {
 const app = express();
 app.use(express.json());
 
+// URL normalization middleware for Vercel/serverless environments
+app.use((req, res, next) => {
+  console.log(`[Request] ${req.method} ${req.url}`);
+  // If the path does not start with /api, but starts with /state, /products, /orders, /banner, or /admin, prefix it with /api
+  if (req.url && !req.url.startsWith('/api') && (
+    req.url.startsWith('/state') || 
+    req.url.startsWith('/products') || 
+    req.url.startsWith('/orders') || 
+    req.url.startsWith('/banner') || 
+    req.url.startsWith('/admin')
+  )) {
+    console.log(`[URL Normalize] Rewriting ${req.url} -> /api${req.url}`);
+    req.url = '/api' + req.url;
+  }
+  next();
+});
+
 // API Endpoints:
   
   // 1. Get entire state for frontend initialization

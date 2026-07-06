@@ -306,8 +306,8 @@ try {
       app = getApps()[0];
     }
     
-    // On Vercel, prioritize the standard (default) database unless they explicitly define FIREBASE_DATABASE_ID
-    const dbId = process.env.FIREBASE_DATABASE_ID || config.firestoreDatabaseId || "(default)";
+    // On Vercel or when custom service account is set, prioritize the standard (default) database unless they explicitly define FIREBASE_DATABASE_ID
+    const dbId = process.env.FIREBASE_DATABASE_ID || (process.env.FIREBASE_SERVICE_ACCOUNT ? "(default)" : config.firestoreDatabaseId) || "(default)";
     firestoreDb = dbId && dbId !== '(default)' ? getFirestore(app, dbId) : getFirestore(app);
     console.log('Firebase Admin initialized successfully with database:', dbId, 'for project:', app.options?.projectId || 'unknown');
   }

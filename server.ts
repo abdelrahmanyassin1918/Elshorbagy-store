@@ -221,22 +221,21 @@ try {
     }
   }
 
-  // Override config parameters for Vercel/production environments to target user's custom elshorbagy-store project
-  if (isVercel || process.env.NODE_ENV === 'production') {
-    console.log('💡 Running on custom production/Vercel environment. Defaulting Firebase project to: elshorbagy-store');
-    config = {
-      projectId: process.env.FIREBASE_PROJECT_ID || "elshorbagy-store",
-      firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || "(default)"
-    };
-  }
-
   // Fallback to hardcoded configuration in case Vercel doesn't bundle the config file and not captured above
   if (!config) {
     console.log('⚠️ Could not physically find firebase-applet-config.json. Using hardcoded workspace config.');
     config = {
-      projectId: process.env.FIREBASE_PROJECT_ID || "elshorbagy-store",
-      firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || (isVercel ? "(default)" : "ai-studio-ef7eeffb-99a4-4341-a6aa-88b74a031ad1")
+      projectId: process.env.FIREBASE_PROJECT_ID || "elshorbagy-store-c573e",
+      firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || "ai-studio-ef7eeffb-99a4-4341-a6aa-88b74a031ad1"
     };
+  } else {
+    // Sync environment overrides if set
+    if (process.env.FIREBASE_PROJECT_ID) {
+      config.projectId = process.env.FIREBASE_PROJECT_ID;
+    }
+    if (process.env.FIREBASE_DATABASE_ID) {
+      config.firestoreDatabaseId = process.env.FIREBASE_DATABASE_ID;
+    }
   }
 
   const isGoogleCloud = !!(process.env.K_SERVICE || process.env.GOOGLE_CLOUD_PROJECT || process.env.GOOGLE_APPLICATION_CREDENTIALS);
@@ -497,12 +496,50 @@ async function loadDB(): Promise<any> {
         }
       }
 
+      // Ensure localData has all required properties with robust defaults to prevent crashes
+      if (!localData) {
+        localData = {};
+      }
+      if (!localData.products || !Array.isArray(localData.products)) {
+        localData.products = [];
+      }
+      if (!localData.orders || !Array.isArray(localData.orders)) {
+        localData.orders = [];
+      }
+      if (!localData.banner) {
+        localData.banner = {
+          badge: '🧼 النظافة والبريق في جيبك • أسعار جملة الجملة',
+          title: 'الشوربجي للمنظفات والورقيات في مصر',
+          subtitle: 'نوفر لكم أكبر تشكيلة من مساحيق الغسيل، مطهرات ديتول، صابون المواعين، والورقيات والمناديل المعقمة بأقصى توفير وأسرع خدمة شحن لباب بيتك!',
+          image: 'https://images.unsplash.com/photo-1628177142898-93e36e4e3a50?auto=format&fit=crop&q=80&w=1200'
+        };
+      }
+      if (!localData.adminSettings) {
+        localData.adminSettings = {
+          username: 'admin',
+          password: '123',
+          users: [
+            { username: 'admin', password: '123', name: 'المدير العام' }
+          ]
+        };
+      }
+      if (!localData.adminSettings.users || !Array.isArray(localData.adminSettings.users) || localData.adminSettings.users.length === 0) {
+        localData.adminSettings.users = [
+          { username: localData.adminSettings.username || 'admin', password: localData.adminSettings.password || '123', name: 'المدير العام' }
+        ];
+      }
+
       cachedDB = localData;
       lastLoadedTime = Date.now();
       return cachedDB;
     } catch (err) {
       console.error('Critical failure in activeLoadPromise:', err);
-      return localData || getInitialData();
+      const fallback = localData || getInitialData();
+      if (!fallback.adminSettings) fallback.adminSettings = { username: 'admin', password: '123', users: [{ username: 'admin', password: '123', name: 'المدير العام' }] };
+      if (!fallback.adminSettings.users) fallback.adminSettings.users = [{ username: 'admin', password: '123', name: 'المدير العام' }];
+      return fallback;
+    } finally {
+      activeLoadPromise = null;
     }
   })();
 
@@ -613,7 +650,7 @@ app.use(express.json());
 
   // 4. Update Banner Config
   app.post('/api/banner', async (req, res) => {
-    const { badge, title, subtitle, image, isClosed } = req.body;
+    const { badge, title, subtitle, image, isClosed } = req.body || {};
     const db = await loadDB();
     db.banner = {
       badge: badge !== undefined ? badge : db.banner.badge,
@@ -859,7 +896,7 @@ app.use(express.json());
   // Update order status (pending, delivered, or cancelled)
   app.put('/api/orders/:id/status', async (req, res) => {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status } = req.body || {};
 
     if (!status || !['pending', 'delivered', 'cancelled'].includes(status)) {
       return res.status(400).json({ error: 'Invalid status value' });
@@ -905,7 +942,7 @@ app.use(express.json());
 
   // 10. Admin Verify Credentials login flow
   app.post('/api/admin/login', async (req, res) => {
-    let { username, password } = req.body;
+    let { username, password } = req.body || {};
     
     console.log('[DEBUG LOGIN] Incoming login request:', { username, password });
 
@@ -965,7 +1002,7 @@ app.use(express.json());
 
   // 12. Save admin users list
   app.post('/api/admin/users', async (req, res) => {
-    const { users } = req.body;
+    const { users } = req.body || {};
     if (!users || !Array.isArray(users)) {
       return res.status(400).json({ error: 'قائمة المستخدمين غير صالحة.' });
     }

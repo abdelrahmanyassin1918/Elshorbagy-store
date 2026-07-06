@@ -648,8 +648,14 @@ ${itemsBrief}
         setIsAuthenticated(true);
         onRefreshData();
       } else {
-        const data = await res.json();
-        setLoginError(data.error || 'فشل تسجيل الدخول');
+        let errorMessage = 'فشل تسجيل الدخول';
+        try {
+          const data = await res.json();
+          errorMessage = data.error || errorMessage;
+        } catch (jsonErr) {
+          errorMessage = `خطأ بالخادم: رمز الاستجابة ${res.status}`;
+        }
+        setLoginError(errorMessage);
       }
     } catch (err) {
       setLoginError('خطأ بالشبكة أو لم يتم تفعيل الخادم بعد.');

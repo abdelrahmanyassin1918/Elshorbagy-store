@@ -608,6 +608,17 @@ export default function App() {
           : `pt-24 md:pt-28 px-4 md:px-6 py-6 ${showFloatingCartBar ? 'pb-36 md:pb-28' : 'pb-10'}`
       }`}>
         <PwaBanner />
+        {!!(dynamicBanner as any)?.isClosed && (
+          <div className="mb-6 bg-red-50 border-2 border-red-200 text-red-700 p-4 rounded-2xl flex items-center gap-3 shadow-sm text-right select-none max-w-7xl mx-auto">
+            <span className="text-3xl shrink-0">🏪</span>
+            <div className="flex-1 space-y-0.5">
+              <h4 className="text-xs sm:text-sm font-black text-red-800">المحل مغلق مؤقتاً حالياً ⚠️</h4>
+              <p className="text-[10px] sm:text-xs text-red-650 font-bold leading-relaxed">
+                نعتذر لعملائنا الكرام، المتجر مغلق مؤقتاً حالياً لتجهيز الطلبيات السابقة وتسليمها بالدليفري. يسعدنا تصفحكم للمنتجات، وسنعاود استقبال الطلبات الجديدة خلال وقت قصير جداً!
+              </p>
+            </div>
+          </div>
+        )}
         {currentView === 'home' && (
           <HomeView
             products={dynamicProducts}
@@ -642,6 +653,7 @@ export default function App() {
             onRemoveFromCart={handleRemoveFromCart}
             onCheckoutComplete={handleCheckoutComplete}
             onNavigate={handleNavigate}
+            isStoreClosed={!!(dynamicBanner as any)?.isClosed}
           />
         )}
 

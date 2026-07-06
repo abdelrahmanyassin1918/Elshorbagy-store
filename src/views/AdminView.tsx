@@ -240,6 +240,7 @@ export default function AdminView({
   const [formBannerTitle, setFormBannerTitle] = useState(banner.title || '');
   const [formBannerSubtitle, setFormBannerSubtitle] = useState(banner.subtitle || '');
   const [formBannerImage, setFormBannerImage] = useState(banner.image || '');
+  const [formBannerIsClosed, setFormBannerIsClosed] = useState(!!(banner as any).isClosed);
   const [bannerSuccessMsg, setBannerSuccessMsg] = useState('');
   const [isBannerSubmitting, setIsBannerSubmitting] = useState(false);
 
@@ -620,6 +621,7 @@ ${itemsBrief}
       setFormBannerTitle(banner.title);
       setFormBannerSubtitle(banner.subtitle);
       setFormBannerImage(banner.image);
+      setFormBannerIsClosed(!!(banner as any).isClosed);
     }
   }, [isAuthenticated, banner]);
 
@@ -916,7 +918,8 @@ ${itemsBrief}
           badge: formBannerBadge,
           title: formBannerTitle,
           subtitle: formBannerSubtitle,
-          image: formBannerImage
+          image: formBannerImage,
+          isClosed: formBannerIsClosed
         })
       });
 
@@ -2237,10 +2240,37 @@ ${itemsBrief}
               <p className="text-[10px] text-gray-400 font-semibold mt-1">الرابط أو الصورة المرفوعة تمثل واجهة الإعلان والمنتجات على اليمين.</p>
             </div>
 
+            {/* Store Status Toggle */}
+            <div className="bg-amber-50/50 border border-amber-100 rounded-2xl p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-black text-amber-900">حالة فتح وإغلاق المتجر الحالية 🏪</h4>
+                  <p className="text-[10px] text-amber-700/80 font-bold mt-0.5">
+                    عند إغلاق المتجر، سيتم تعطيل استقبال الطلبات مؤقتاً وسيظهر شريط تنبيه واضح للزوار لتجنب إرسال طلبات جديدة.
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={formBannerIsClosed} 
+                    onChange={(e) => setFormBannerIsClosed(e.target.checked)} 
+                    className="sr-only peer" 
+                  />
+                  <div className="w-11 h-6 bg-green-500 peer-focus:outline-none rounded-full peer peer-checked:bg-red-500 after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+                </label>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`w-2.5 h-2.5 rounded-full ${formBannerIsClosed ? 'bg-red-500 animate-pulse' : 'bg-[#00bf63]'}`} />
+                <span className="text-xs font-black text-gray-700">
+                  المحل حالياً: {formBannerIsClosed ? '❌ مغلق مؤقتاً (لا يمكن الشراء)' : '✅ مفتوح وجاهز لاستقبال الطلبات'}
+                </span>
+              </div>
+            </div>
+
             <button
               type="submit"
               disabled={isBannerSubmitting}
-              className="px-5 py-3.5 bg-[#00bf63] hover:bg-brand-green-dark text-white rounded-xl text-xs font-black shadow-md cursor-pointer disabled:opacity-50"
+              className="px-5 py-3.5 bg-[#00bf63] hover:bg-brand-green-dark text-white rounded-xl text-xs font-black shadow-md cursor-pointer disabled:opacity-50 w-full sm:w-auto"
             >
               {isBannerSubmitting ? 'جاري حفظ التحديث...' : 'تأكيد وحفظ الإعدادات 🚀'}
             </button>

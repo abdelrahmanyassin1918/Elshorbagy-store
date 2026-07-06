@@ -3,8 +3,21 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+let currentDirname = process.cwd();
+try {
+  const isEsm = typeof import.meta !== 'undefined' && !!import.meta.url;
+  if (isEsm) {
+    const url = (import.meta as any).url;
+    if (url) {
+      currentDirname = path.dirname(fileURLToPath(url));
+    }
+  } else {
+    // @ts-ignore
+    currentDirname = __dirname;
+  }
+} catch (e) {
+  currentDirname = process.cwd();
+}
 
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
@@ -184,6 +197,8 @@ const getInitialData = () => {
 let cachedDB: any = null;
 let firestoreDb: any = null;
 let isFirestoreDisabled = false;
+let lastLoadedTime = 0;
+let activeLoadPromise: Promise<any> | null = null;
 
 // Initialize Firebase Admin safely
 try {
@@ -192,8 +207,8 @@ try {
   const configPaths = [
     path.join(process.cwd(), 'firebase-applet-config.json'),
     path.join(process.cwd(), '..', 'firebase-applet-config.json'),
-    path.join(__dirname, 'firebase-applet-config.json'),
-    path.join(__dirname, '..', 'firebase-applet-config.json')
+    path.join(currentDirname, 'firebase-applet-config.json'),
+    path.join(currentDirname, '..', 'firebase-applet-config.json')
   ];
   
   for (const p of configPaths) {
@@ -349,134 +364,156 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallbackVa
 
 // Read database with Firestore support and fallback
 async function loadDB(): Promise<any> {
-  if (cachedDB) {
+  const now = Date.now();
+  
+  // If we have a fresh cache (less than 3 seconds old), return it
+  if (cachedDB && (now - lastLoadedTime < 3000)) {
     return cachedDB;
   }
 
-  // First load from local file to guarantee we have a quick fallback
-  let localData: any = null;
-  if (fs.existsSync(DB_PATH)) {
-    try {
-      localData = JSON.parse(fs.readFileSync(DB_PATH, 'utf-8'));
-    } catch (e) {
-      console.error('Error reading local DB:', e);
-    }
+  // Coalesce multiple concurrent loads into a single promise
+  if (activeLoadPromise) {
+    return activeLoadPromise;
   }
 
-  if (!localData) {
-    const projectDbPath = path.join(process.cwd(), 'data-db.json');
-    if (fs.existsSync(projectDbPath)) {
-      try {
-        console.log('Initializing temporary database from project data-db.json');
-        localData = JSON.parse(fs.readFileSync(projectDbPath, 'utf-8'));
-      } catch (e) {
-        console.error('Error reading project data-db.json:', e);
-      }
-    }
-    
-    if (!localData) {
-      localData = getInitialData();
-    }
-    
+  activeLoadPromise = (async () => {
+    let localData: any = null;
     try {
-      fs.writeFileSync(DB_PATH, JSON.stringify(localData, null, 2), 'utf-8');
-    } catch (e) {
-      console.error('Error writing initialized database to DB_PATH:', e);
-    }
-  }
-
-  if (localData && localData.adminSettings && (!localData.adminSettings.users || !Array.isArray(localData.adminSettings.users))) {
-    localData.adminSettings.users = [
-      { username: localData.adminSettings.username || 'admin', password: localData.adminSettings.password || '123', name: 'المدير العام' }
-    ];
-  }
-
-  // If Firestore is available, load from it. Local offline checks are done at initialization.
-
-  if (firestoreDb) {
-    try {
-      console.log('Fetching state from Firestore (with 4s timeout)...');
-      
-      // Load products with 4s timeout
-      const productsPromise = firestoreDb.collection('products').get();
-      const productsSnap = await withTimeout(productsPromise, 4000, null);
-      
-      if (!productsSnap) {
-        throw new Error('Firestore read timed out or failed');
+      // First load from local file to guarantee we have a quick fallback
+      if (fs.existsSync(DB_PATH)) {
+        try {
+          localData = JSON.parse(fs.readFileSync(DB_PATH, 'utf-8'));
+        } catch (e) {
+          console.error('Error reading local DB:', e);
+        }
       }
 
-      let productsList: any[] = [];
-      productsSnap.forEach(doc => {
-        productsList.push({ id: doc.id, ...doc.data() });
-      });
-
-      // Load orders with 4s timeout
-      const ordersPromise = firestoreDb.collection('orders').get();
-      const ordersSnap = await withTimeout(ordersPromise, 4000, null);
-      
-      let ordersList: any[] = [];
-      if (ordersSnap) {
-        ordersSnap.forEach(doc => {
-          ordersList.push(doc.data());
-        });
-        // Sort orders by timestamp descending locally
-        ordersList.sort((a, b) => {
-          return new Date(b.dateKey || 0).getTime() - new Date(a.dateKey || 0).getTime();
-        });
+      if (!localData) {
+        const projectDbPath = path.join(process.cwd(), 'data-db.json');
+        if (fs.existsSync(projectDbPath)) {
+          try {
+            console.log('Initializing temporary database from project data-db.json');
+            localData = JSON.parse(fs.readFileSync(projectDbPath, 'utf-8'));
+          } catch (e) {
+            console.error('Error reading project data-db.json:', e);
+          }
+        }
+        
+        if (!localData) {
+          localData = getInitialData();
+        }
+        
+        try {
+          fs.writeFileSync(DB_PATH, JSON.stringify(localData, null, 2), 'utf-8');
+        } catch (e) {
+          console.error('Error writing initialized database to DB_PATH:', e);
+        }
       }
 
-      // Load settings (banner & admin) with 4s timeout
-      const bannerPromise = firestoreDb.collection('settings').doc('banner').get();
-      const adminPromise = firestoreDb.collection('settings').doc('admin').get();
-      
-      const [bannerDoc, adminDoc] = await Promise.all([
-        withTimeout(bannerPromise, 4000, null),
-        withTimeout(adminPromise, 4000, null)
-      ]);
-
-      let banner = localData.banner;
-      if (bannerDoc && bannerDoc.exists) {
-        banner = bannerDoc.data();
-      }
-
-      let adminSettings = localData.adminSettings;
-      if (adminDoc && adminDoc.exists) {
-        adminSettings = adminDoc.data() || {};
-      }
-      if (!adminSettings.users || !Array.isArray(adminSettings.users) || adminSettings.users.length === 0) {
-        adminSettings.users = [
-          { username: adminSettings.username || 'admin', password: adminSettings.password || '123', name: 'المدير العام' }
+      if (localData && localData.adminSettings && (!localData.adminSettings.users || !Array.isArray(localData.adminSettings.users))) {
+        localData.adminSettings.users = [
+          { username: localData.adminSettings.username || 'admin', password: localData.adminSettings.password || '123', name: 'المدير العام' }
         ];
       }
 
-      // If Firestore had data, merge it into local cache
-      if (productsList.length > 0) {
-        console.log('Syncing in-memory DB with Firestore data');
-        localData.products = productsList;
-        localData.orders = ordersList;
-        localData.banner = banner;
-        localData.adminSettings = adminSettings;
-        
-        // Update local file for redundancy
-        fs.writeFileSync(DB_PATH, JSON.stringify(localData, null, 2), 'utf-8');
-      } else {
-        // Firestore is empty! Seed Firestore with initial data
-        console.log('Firestore is empty. Seeding Firestore with initial data...');
-        await seedFirestore(localData);
-      }
-    } catch (err) {
-      console.error('Firestore loading failed, falling back to local storage and disabling Firestore for this lifecycle:', err);
-      firestoreDb = null;
-    }
-  }
+      // If Firestore is available, load from it. Local offline checks are done at initialization.
+      if (firestoreDb) {
+        try {
+          console.log('Fetching state from Firestore (with 4s timeout)...');
+          
+          // Load products with 4s timeout
+          const productsPromise = firestoreDb.collection('products').get();
+          const productsSnap = await withTimeout(productsPromise, 4000, null);
+          
+          if (!productsSnap) {
+            throw new Error('Firestore read timed out or failed');
+          }
 
-  cachedDB = localData;
-  return cachedDB;
+          let productsList: any[] = [];
+          productsSnap.forEach((doc: any) => {
+            productsList.push({ id: doc.id, ...doc.data() });
+          });
+
+          // Load orders with 4s timeout
+          const ordersPromise = firestoreDb.collection('orders').get();
+          const ordersSnap = await withTimeout(ordersPromise, 4000, null);
+          
+          let ordersList: any[] = [];
+          if (ordersSnap) {
+            ordersSnap.forEach((doc: any) => {
+              ordersList.push(doc.data());
+            });
+            // Sort orders by timestamp descending locally
+            ordersList.sort((a, b) => {
+              return new Date(b.dateKey || 0).getTime() - new Date(a.dateKey || 0).getTime();
+            });
+          }
+
+          // Load settings (banner & admin) with 4s timeout
+          const bannerPromise = firestoreDb.collection('settings').doc('banner').get();
+          const adminPromise = firestoreDb.collection('settings').doc('admin').get();
+          
+          const [bannerDoc, adminDoc] = await Promise.all([
+            withTimeout(bannerPromise, 4000, null),
+            withTimeout(adminPromise, 4000, null)
+          ]);
+
+          let banner = localData.banner;
+          if (bannerDoc && bannerDoc.exists) {
+            banner = bannerDoc.data();
+          }
+
+          let adminSettings = localData.adminSettings;
+          if (adminDoc && adminDoc.exists) {
+            adminSettings = adminDoc.data() || {};
+          }
+          if (!adminSettings.users || !Array.isArray(adminSettings.users) || adminSettings.users.length === 0) {
+            adminSettings.users = [
+              { username: adminSettings.username || 'admin', password: adminSettings.password || '123', name: 'المدير العام' }
+            ];
+          }
+
+          // If Firestore had data, merge it into local cache
+          if (productsList.length > 0) {
+            console.log('Syncing in-memory DB with Firestore data');
+            localData.products = productsList;
+            localData.orders = ordersList;
+            localData.banner = banner;
+            localData.adminSettings = adminSettings;
+            
+            // Update local file for redundancy
+            try {
+              fs.writeFileSync(DB_PATH, JSON.stringify(localData, null, 2), 'utf-8');
+            } catch (e) {
+              console.error('Error writing redundant cache:', e);
+            }
+          } else {
+            // Firestore is empty! Seed Firestore with initial data
+            console.log('Firestore is empty. Seeding Firestore with initial data...');
+            await seedFirestore(localData);
+          }
+        } catch (err) {
+          console.error('Firestore loading failed, falling back to local storage:', err);
+        }
+      }
+
+      cachedDB = localData;
+      lastLoadedTime = Date.now();
+      return cachedDB;
+    } catch (err) {
+      console.error('Critical failure in activeLoadPromise:', err);
+      return localData || getInitialData();
+    }
+  })();
+
+  return activeLoadPromise;
 }
 
 // Save database with write-through
 async function saveDB(data: any) {
-  cachedDB = data;
+  const oldData = cachedDB || { products: [], orders: [], banner: {}, adminSettings: {} };
+  cachedDB = JSON.parse(JSON.stringify(data)); // Deep copy to prevent side-effects
+  lastLoadedTime = Date.now(); // Keep cache freshly updated
   
   // 1. Write to local file first (fast & secure)
   try {
@@ -485,26 +522,64 @@ async function saveDB(data: any) {
     console.error('Error writing to local DB:', e);
   }
 
-  // 2. Asynchronously write to Firestore
+  // 2. Write to Firestore (AWAITED delta updates)
   if (firestoreDb) {
     try {
-      // Write settings
-      firestoreDb.collection('settings').doc('banner').set(data.banner).catch(e => console.error('Error saving banner to Firestore:', e));
-      firestoreDb.collection('settings').doc('admin').set(data.adminSettings).catch(e => console.error('Error saving admin settings to Firestore:', e));
+      const promises: Promise<any>[] = [];
 
-      // Sync products
-      for (const p of data.products) {
-        const { id, ...pData } = p;
-        firestoreDb.collection('products').doc(id).set(pData).catch(e => console.error(`Error saving product ${id} to Firestore:`, e));
+      // Compare banner
+      if (JSON.stringify(data.banner) !== JSON.stringify(oldData.banner)) {
+        console.log('[Firestore Sync] Banner changed, updating...');
+        promises.push(firestoreDb.collection('settings').doc('banner').set(data.banner));
       }
 
-      // Sync orders
+      // Compare adminSettings
+      if (JSON.stringify(data.adminSettings) !== JSON.stringify(oldData.adminSettings)) {
+        console.log('[Firestore Sync] Admin settings changed, updating...');
+        promises.push(firestoreDb.collection('settings').doc('admin').set(data.adminSettings));
+      }
+
+      // Compare products
+      const oldProductsMap = new Map(oldData.products.map((p: any) => [p.id, p]));
+      const newProductsMap = new Map(data.products.map((p: any) => [p.id, p]));
+
+      // Find added or updated products
+      for (const p of data.products) {
+        const oldP = oldProductsMap.get(p.id);
+        if (!oldP || JSON.stringify(p) !== JSON.stringify(oldP)) {
+          console.log(`[Firestore Sync] Product ${p.id} added or updated, saving...`);
+          const { id, ...pData } = p;
+          promises.push(firestoreDb.collection('products').doc(id).set(pData));
+        }
+      }
+
+      // Find deleted products
+      for (const oldP of oldData.products) {
+        if (!newProductsMap.has(oldP.id)) {
+          console.log(`[Firestore Sync] Product ${oldP.id} deleted, removing...`);
+          promises.push(firestoreDb.collection('products').doc(oldP.id).delete());
+        }
+      }
+
+      // Compare orders
+      const oldOrdersMap = new Map(oldData.orders.map((o: any) => [o.orderId, o]));
       for (const order of data.orders) {
-        const docId = order.orderId.replace(/[^a-zA-Z0-9_\u0600-\u06FF]+/g, '_'); // Safe ID
-        firestoreDb.collection('orders').doc(docId).set(order).catch(e => console.error(`Error saving order ${order.orderId} to Firestore:`, e));
+        const oldO = oldOrdersMap.get(order.orderId);
+        if (!oldO || JSON.stringify(order) !== JSON.stringify(oldO)) {
+          console.log(`[Firestore Sync] Order ${order.orderId} added or updated, saving...`);
+          const docId = order.orderId.replace(/[^a-zA-Z0-9_\u0600-\u06FF]+/g, '_');
+          promises.push(firestoreDb.collection('orders').doc(docId).set(order));
+        }
+      }
+
+      // Await ALL the database writes concurrently before returning!
+      // This is super critical so Vercel keeps the lambda alive until everything is safely persisted!
+      if (promises.length > 0) {
+        await Promise.all(promises);
+        console.log(`[Firestore Sync] Successfully synced ${promises.length} changes to Firestore.`);
       }
     } catch (err) {
-      console.error('Error scheduling Firestore writes:', err);
+      console.error('Error syncing changes to Firestore:', err);
     }
   }
 }
@@ -538,13 +613,14 @@ app.use(express.json());
 
   // 4. Update Banner Config
   app.post('/api/banner', async (req, res) => {
-    const { badge, title, subtitle, image } = req.body;
+    const { badge, title, subtitle, image, isClosed } = req.body;
     const db = await loadDB();
     db.banner = {
-      badge: badge || db.banner.badge,
-      title: title || db.banner.title,
-      subtitle: subtitle || db.banner.subtitle,
-      image: image || db.banner.image
+      badge: badge !== undefined ? badge : db.banner.badge,
+      title: title !== undefined ? title : db.banner.title,
+      subtitle: subtitle !== undefined ? subtitle : db.banner.subtitle,
+      image: image !== undefined ? image : db.banner.image,
+      isClosed: isClosed !== undefined ? !!isClosed : !!db.banner.isClosed
     };
     await saveDB(db);
     res.json({ success: true, banner: db.banner });

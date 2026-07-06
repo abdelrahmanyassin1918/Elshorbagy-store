@@ -10,6 +10,7 @@ interface CartViewProps {
   onRemoveFromCart: (productId: string) => void;
   onCheckoutComplete: (orderDetails: OrderDetails) => void;
   onNavigate: (view: string, params?: any) => void;
+  isStoreClosed?: boolean;
 }
 
 export default function CartView({
@@ -18,6 +19,7 @@ export default function CartView({
   onRemoveFromCart,
   onCheckoutComplete,
   onNavigate,
+  isStoreClosed,
 }: CartViewProps) {
   
   // Checkout Form State
@@ -370,25 +372,35 @@ export default function CartView({
               )}
 
               {/* Confirm submit trigger button with cash-on-delivery branding */}
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full py-3.5 mt-2 bg-brand-purple hover:bg-brand-purple-dark disabled:bg-gray-300 text-white font-extrabold text-sm sm:text-base rounded-xl transition-all duration-300 shadow-md shadow-brand-purple/20 flex items-center justify-center gap-2 cursor-pointer active:scale-98"
-              >
-                {isSubmitting ? (
-                  <span className="flex items-center gap-2">
-                    <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    جاري تـسجيل طلبـك بكـنز...
-                  </span>
-                ) : (
-                  <>
-                    <span>✓ تأكيد الطلب والدفع عند الاستلام</span>
-                  </>
-                )}
-              </button>
+              {isStoreClosed ? (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center space-y-1.5 mt-4">
+                  <span className="text-2xl block">🏪❌</span>
+                  <p className="text-xs font-black text-red-700">المحل مغلق مؤقتاً حالياً</p>
+                  <p className="text-[10px] text-red-600 font-bold leading-relaxed">
+                    نعتذر منك بشدة، تم إغلاق استقبال الطلبات الجديدة مؤقتاً بواسطة الإدارة لتجهيز الدفعات الحالية. لا يمكن تأكيد الشراء الآن، يمكنك تصفح المنتجات وسنسعد بخدمتكم قريباً جداً!
+                  </p>
+                </div>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full py-3.5 mt-2 bg-brand-purple hover:bg-brand-purple-dark disabled:bg-gray-300 text-white font-extrabold text-sm sm:text-base rounded-xl transition-all duration-300 shadow-md shadow-brand-purple/20 flex items-center justify-center gap-2 cursor-pointer active:scale-98"
+                >
+                  {isSubmitting ? (
+                    <span className="flex items-center gap-2">
+                      <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      جاري تـسجيل طلبـك بكـنز...
+                    </span>
+                  ) : (
+                    <>
+                      <span>✓ تأكيد الطلب والدفع عند الاستلام</span>
+                    </>
+                  )}
+                </button>
+              )}
 
             </form>
           </div>

@@ -254,6 +254,15 @@ try {
     if (getApps().length === 0) {
       let credential;
       let projectId = process.env.FIREBASE_PROJECT_ID || config.projectId;
+      
+      // AI Studio specific: if running on Google Cloud without a service account key,
+      // the container uses Application Default Credentials of the AI Studio host project.
+      // If the config projectId is different, it will throw PERMISSION_DENIED.
+      if (process.env.GOOGLE_CLOUD_PROJECT && !saEnv && projectId !== process.env.GOOGLE_CLOUD_PROJECT) {
+        console.log(`ℹ️ Overriding config projectId "${projectId}" with host projectId "${process.env.GOOGLE_CLOUD_PROJECT}" because no service account was provided.`);
+        projectId = process.env.GOOGLE_CLOUD_PROJECT;
+      }
+      
       if (saEnv) {
         try {
           let serviceAccount: any = null;

@@ -1,17 +1,17 @@
 import { Brand } from '../types';
-import { BRANDS } from '../data';
 
 interface BrandSliderProps {
+  brands?: Brand[];
   onSelectBrand: (brandName: string) => void;
 }
 
-export default function BrandSlider({ onSelectBrand }: BrandSliderProps) {
+export default function BrandSlider({ brands = [], onSelectBrand }: BrandSliderProps) {
   return (
     <div className="w-full">
       {/* Brands Scrolling Container */}
       <div className="overflow-x-auto no-scrollbar py-2 px-1">
         <div className="flex gap-2.5 md:gap-4 pb-2">
-          {BRANDS.map((brand) => {
+          {brands.map((brand) => {
             return (
               <div
                 key={brand.id}

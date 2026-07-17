@@ -77,7 +77,7 @@ export default function ProductCard({
       <div className="flex items-center gap-1 mb-3">
         <span className="text-amber-400 shrink-0 flex items-center justify-center"><FaStar size={12} /></span>
         <span className="text-[10px] md:text-xs font-bold text-gray-600">
-          {rating.toFixed(1)}
+          {rating}
         </span>
         <span className="text-[9px] md:text-[10px] text-gray-400">
           ({reviewsCount})

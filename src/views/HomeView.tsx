@@ -1,6 +1,5 @@
 import React from 'react';
-import { Product } from '../types';
-import { PRODUCTS, CATEGORIES, BRANDS } from '../data';
+import { Product, Category } from '../types';
 import { FiArrowLeft, FiTag, FiShoppingBag, FiStar } from 'react-icons/fi';
 
 interface HomeViewProps {
@@ -10,7 +9,8 @@ interface HomeViewProps {
     title: string;
     subtitle: string;
     image: string;
-  };
+  }
+  categories?: Category[];
   onSelectProduct: (product: Product) => void;
   onAddToCart: (product: Product, e: React.MouseEvent) => void;
   onNavigate: (view: string, params?: any) => void;
@@ -33,46 +33,26 @@ const BRAND_IMAGES: Record<string, string> = {
 export default function HomeView({
   products,
   banner,
+  categories,
   onSelectProduct,
   onAddToCart,
   onNavigate,
 }: HomeViewProps) {
   
-  const activeProducts = products && products.length > 0 ? products : PRODUCTS;
-
-  // Dynamically compute active categories and brands
-  const dynamicCategories = React.useMemo(() => {
-    const list = [...CATEGORIES];
-    activeProducts.forEach((p) => {
-      if (!p.category) return;
-      const exists = list.some(
-        (c) => c.id.toLowerCase() === p.category.toLowerCase() || c.name.toLowerCase() === p.category.toLowerCase()
-      );
-      if (!exists) {
-        list.push({
-          id: p.category,
-          name: p.category,
-          icon: '🏷️',
-          image: 'https://images.unsplash.com/photo-1628177142898-93e36e4e3a50?auto=format&fit=crop&q=80&w=400'
-        });
-      }
-    });
-    return list;
-  }, [activeProducts]);
+  const activeProducts = products || [];
 
   const dynamicBrands = React.useMemo(() => {
-    const list = [...BRANDS];
+    const list: Array<{ id: string; name: string; bgClass: string; textColor: string }> = [];
     activeProducts.forEach((p) => {
       if (!p.brand) return;
-      const exists = list.some(
-        (b) => b.id.toLowerCase() === p.brand.toLowerCase() || b.name.toLowerCase() === p.brand.toLowerCase()
-      );
+      const normalizedKey = p.brand.toLowerCase().replace(/\s+/g, '-');
+      const exists = list.some((b) => b.id === normalizedKey);
       if (!exists) {
         list.push({
-          id: p.brand.toLowerCase().replace(/\s+/g, '-'),
+          id: normalizedKey,
           name: p.brand,
           bgClass: 'bg-brand-purple-light border border-brand-purple/20',
-          textColor: 'text-brand-purple-dark'
+          textColor: 'text-brand-purple-dark',
         });
       }
     });
@@ -182,7 +162,7 @@ export default function HomeView({
         </div>
         
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3.5 md:gap-5">
-          {dynamicCategories.map((category) => (
+          {(categories || []).map((category) => (
             <div
               key={category.id}
               onClick={() => onNavigate('products', { category: category.id })}
@@ -191,8 +171,16 @@ export default function HomeView({
               {/* Decorative cartoon top circle */}
               <div className="absolute -top-6 -right-6 w-16 h-16 bg-brand-purple-light rounded-full opacity-70 group-hover:scale-125 transition-transform duration-300"></div>
               
-              <div className="text-4xl md:text-5xl mb-3.5 relative z-10 filter drop-shadow-sm group-hover:scale-115 group-hover:rotate-4 transition-transform duration-300">
-                {category.icon}
+              <div className="w-16 h-16 md:w-20 md:h-20 mb-3.5 relative z-10 filter drop-shadow-sm group-hover:scale-110 transition-transform duration-300 mx-auto bg-white rounded-2xl p-1 border border-brand-purple/10 flex items-center justify-center">
+                <img
+                  src={category.image || 'https://res.cloudinary.com/dglhc1pfj/image/upload/v1718817951/tag-placeholder_u5gy9y.png'}
+                  alt={category.name}
+                  className="w-full h-full object-contain rounded-xl"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = 'https://res.cloudinary.com/dglhc1pfj/image/upload/v1718817951/tag-placeholder_u5gy9y.png';
+                  }}
+                  referrerPolicy="no-referrer"
+                />
               </div>
               
               <h3 className="text-xs md:text-sm font-black text-brand-purple-dark group-hover:text-brand-purple transition-colors relative z-10 leading-snug">

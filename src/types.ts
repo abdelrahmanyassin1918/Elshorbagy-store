@@ -14,6 +14,13 @@ export interface SaleRecord {
   totalRevenue: number;
 }
 
+export interface Review {
+  name: string;
+  rating: number; // e.g., 1-5
+  comment: string;
+  createdAt?: string; // ISO date string
+}
+
 export interface Product {
   id: string;
   title: string;
@@ -37,6 +44,7 @@ export interface Product {
   specs: { [key: string]: string };
   purchaseHistory?: PurchaseRecord[];
   salesHistory?: SaleRecord[];
+  reviews?: Review[];
   addedDate?: string;
 }
 

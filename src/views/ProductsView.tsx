@@ -1,12 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Product } from '../types';
-import { PRODUCTS, CATEGORIES, BRANDS } from '../data';
+import { Product, Category } from '../types';
 import ProductCard from '../components/ProductCard';
 import { FaFilter, FaSearch, FaSortAmountDown } from 'react-icons/fa';
 import { FiSliders, FiTrash2 } from 'react-icons/fi';
 
 interface ProductsViewProps {
   products?: Product[];
+  categories?: Category[];
   initialFilters?: {
     category?: string;
     brand?: string;
@@ -19,45 +19,25 @@ interface ProductsViewProps {
 
 export default function ProductsView({
   products,
+  categories,
   initialFilters = {},
   onSelectProduct,
   onAddToCart,
 }: ProductsViewProps) {
-  const activeProducts = useMemo(() => products && products.length > 0 ? products : PRODUCTS, [products]);
-
-  // Dynamically compute active categories and brands
-  const dynamicCategories = useMemo(() => {
-    const list = [...CATEGORIES];
-    activeProducts.forEach((p) => {
-      if (!p.category) return;
-      const exists = list.some(
-        (c) => c.id.toLowerCase() === p.category.toLowerCase() || c.name.toLowerCase() === p.category.toLowerCase()
-      );
-      if (!exists) {
-        list.push({
-          id: p.category,
-          name: p.category,
-          icon: '🏷️',
-          image: 'https://images.unsplash.com/photo-1628177142898-93e36e4e3a50?auto=format&fit=crop&q=80&w=400'
-        });
-      }
-    });
-    return list;
-  }, [activeProducts]);
+  const activeProducts = useMemo(() => products || [], [products]);
 
   const dynamicBrands = useMemo(() => {
-    const list = [...BRANDS];
+    const list: Array<{ id: string; name: string; bgClass: string; textColor: string }> = [];
     activeProducts.forEach((p) => {
       if (!p.brand) return;
-      const exists = list.some(
-        (b) => b.id.toLowerCase() === p.brand.toLowerCase() || b.name.toLowerCase() === p.brand.toLowerCase()
-      );
+      const normalizedKey = p.brand.toLowerCase().replace(/\s+/g, '-');
+      const exists = list.some((b) => b.id === normalizedKey);
       if (!exists) {
         list.push({
-          id: p.brand.toLowerCase().replace(/\s+/g, '-'),
+          id: normalizedKey,
           name: p.brand,
           bgClass: 'bg-brand-purple-light border border-brand-purple/20',
-          textColor: 'text-brand-purple-dark'
+          textColor: 'text-brand-purple-dark',
         });
       }
     });
@@ -112,7 +92,7 @@ export default function ProductsView({
     // Category filter
     if (selectedCategory) {
       result = result.filter((p) => {
-        const catObj = dynamicCategories.find(c => c.id === selectedCategory || c.name === selectedCategory);
+        const catObj = (categories || []).find(c => c.id === selectedCategory || c.name === selectedCategory);
         if (catObj) {
           return p.category.toLowerCase() === catObj.id.toLowerCase() || p.category.toLowerCase() === catObj.name.toLowerCase();
         }
@@ -266,7 +246,7 @@ export default function ProductsView({
                 >
                   الكل 🛍️
                 </button>
-                {dynamicCategories.map((cat) => (
+                {(categories || []).map((cat) => (
                   <button
                     key={cat.id}
                     onClick={() => setSelectedCategory(cat.id)}
@@ -276,8 +256,16 @@ export default function ProductsView({
                         : 'bg-white border-brand-purple/10 text-gray-600 hover:bg-brand-purple-light'
                     }`}
                   >
-                    <span className="truncate flex items-center gap-1">
-                      <span>{cat.icon}</span>
+                    <span className="truncate flex items-center gap-2">
+                      <img
+                        src={cat.image || 'https://res.cloudinary.com/dglhc1pfj/image/upload/v1718817951/tag-placeholder_u5gy9y.png'}
+                        alt={cat.name}
+                        className="w-5 h-5 object-contain rounded"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'https://res.cloudinary.com/dglhc1pfj/image/upload/v1718817951/tag-placeholder_u5gy9y.png';
+                        }}
+                        referrerPolicy="no-referrer"
+                      />
                       <span className="truncate">{cat.name}</span>
                     </span>
                   </button>

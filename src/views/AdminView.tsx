@@ -1,11 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { Product, OrderDetails, PurchaseRecord } from '../types';
-import { CATEGORIES, BRANDS } from '../data';
+import { Product, OrderDetails, PurchaseRecord, Category, UserData } from '../types';
+import { CATEGORIES } from '../data';
+import { signInAdmin, signOut_ } from '../authUtils';
+import {
+  getAllOrders as getFirestoreOrders,
+  addProduct as addFirestoreProduct,
+  updateProduct as updateFirestoreProduct,
+  deleteProduct as deleteFirestoreProduct,
+  addCategory as addFirestoreCategory,
+  updateCategory as updateFirestoreCategory,
+  deleteCategory as deleteFirestoreCategory,
+  updateOrderStatus as updateFirestoreOrderStatus,
+  saveBannerData as saveFirestoreBanner,
+  getAllUsers as getFirestoreUsers,
+  updateUser as updateFirestoreUser,
+  deleteUser as deleteFirestoreUser,
+} from '../firestoreUtils';
 import { 
   FaLock, FaCheckCircle, FaTrash, FaEdit, FaPlus, FaSlidersH, 
   FaBoxOpen, FaClipboardList, FaSignOutAlt, FaTimesCircle,
-  FaCubes, FaMoneyBillWave, FaChartLine, FaDollyFlatbed, FaSearch,
-  FaPrint, FaWhatsapp, FaEye, FaEyeSlash, FaPhone, FaBarcode
+  FaCubes, FaMoneyBillWave, FaChartLine, FaDollyFlatbed, FaSearch, FaGripLines,
+  FaPrint, FaWhatsapp, FaEye, FaEyeSlash, FaPhone, FaBarcode,
+  FaTags
 } from 'react-icons/fa';
 
 interface AdminViewProps {
@@ -17,6 +33,7 @@ interface AdminViewProps {
     image: string;
   };
   orders: OrderDetails[];
+  categories: Category[];
   onRefreshData: () => void;
   onNavigate: (view: string) => void;
 }
@@ -43,16 +60,44 @@ const getGateUrl = (baseUrl: string) => {
   }
 };
 
+const uploadToCloudinary = async (file: File): Promise<string> => {
+  const env = (import.meta as ImportMeta & { env?: Record<string, string> }).env ?? {};
+  const cloudName = env.VITE_CLOUDINARY_CLOUD_NAME;
+  const uploadPreset = env.VITE_CLOUDINARY_UPLOAD_PRESET;
+
+  if (!cloudName || !uploadPreset) {
+    throw new Error('يرجى تهيئة Cloudinary عبر VITE_CLOUDINARY_CLOUD_NAME و VITE_CLOUDINARY_UPLOAD_PRESET');
+  }
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', uploadPreset);
+
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  const data = await response.json();
+  if (!response.ok || !data.secure_url) {
+    throw new Error(data.error?.message || 'فشل رفع الصورة إلى Cloudinary');
+  }
+
+  return data.secure_url as string;
+};
+
 export default function AdminView({
   products,
   banner,
   orders: propOrders,
+  categories,
   onRefreshData,
   onNavigate,
 }: AdminViewProps) {
   // Login credentials state
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return (sessionStorage.getItem('elshorbagy_admin_token') || localStorage.getItem('elshorbagy_admin_token')) === 'validated_sess_token_secure';
+    const token = sessionStorage.getItem('elshorbagy_admin_token') || localStorage.getItem('elshorbagy_admin_token');
+    return token === 'validated_sess_token_secure' || token === 'firebase-admin-auth';
   });
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -60,30 +105,28 @@ export default function AdminView({
   const [loginError, setLoginError] = useState('');
   const [isLoginSubmitting, setIsLoginSubmitting] = useState(false);
 
-  // Tab State: 'products' | 'orders' | 'banner' | 'inventory' | 'users' | 'qrcode'
-  const [activeTab, setActiveTab] = useState<'products' | 'orders' | 'banner' | 'inventory' | 'users' | 'qrcode'>('products');
+  // Tab State: 'products' | 'orders' | 'banner' | 'inventory' | 'users' | 'qrcode' | 'categories'
+  const [activeTab, setActiveTab] = useState<'products' | 'orders' | 'banner' | 'inventory' | 'users' | 'qrcode' | 'categories'>('products');
 
   // Multi-user state
   const [adminDisplayName, setAdminDisplayName] = useState<string>(() => {
     return sessionStorage.getItem('elshorbagy_admin_user_name') || localStorage.getItem('elshorbagy_admin_user_name') || 'المدير';
   });
-  const [adminUsers, setAdminUsers] = useState<{ username: string; password: string; name: string }[]>([]);
+  const [adminUsers, setAdminUsers] = useState<UserData[]>([]);
   const [isAdminUsersLoading, setIsAdminUsersLoading] = useState(false);
   const [newAdminUsername, setNewAdminUsername] = useState('');
   const [newAdminPassword, setNewAdminPassword] = useState('');
   const [newAdminName, setNewAdminName] = useState('');
 
   // Edit Admin User states
-  const [editingAdminIndex, setEditingAdminIndex] = useState<number | null>(null);
+  const [editingUser, setEditingUser] = useState<UserData | null>(null);
   const [editingAdminName, setEditingAdminName] = useState('');
   const [editingAdminUsername, setEditingAdminUsername] = useState('');
-  const [editingAdminNewPassword, setEditingAdminNewPassword] = useState('');
-  const [editingAdminOldPasswordConfirm, setEditingAdminOldPasswordConfirm] = useState('');
   const [showEditingPassword, setShowEditingPassword] = useState(false);
 
   // User Management State Messages & Double Delete Confirm
   const [userTabMsg, setUserTabMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [deletingIndexConfirm, setDeletingIndexConfirm] = useState<number | null>(null);
+  const [deletingUserConfirm, setDeletingUserConfirm] = useState<UserData | null>(null);
   const [editAdminError, setEditAdminError] = useState<string>('');
 
   const showUserMessage = (type: 'success' | 'error', text: string) => {
@@ -92,6 +135,14 @@ export default function AdminView({
       setUserTabMsg(null);
     }, 7000);
   };
+
+  // Category Management State
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [formCategoryName, setFormCategoryName] = useState('');
+  const [formCategoryImage, setFormCategoryImage] = useState('');
+  const [categoryFormError, setCategoryFormError] = useState('');
+  const [isCategoryUploading, setIsCategoryUploading] = useState(false);
 
   // State to filter and only show out of stock items
   const [onlyShowOutOfStock, setOnlyShowOutOfStock] = useState<boolean>(false);
@@ -184,36 +235,16 @@ export default function AdminView({
   const [formCategory, setFormCategory] = useState('powders_detergents');
   const [formBrand, setFormBrand] = useState('برسيل');
   const [formCompany, setFormCompany] = useState('');
-  const [formImage, setFormImage] = useState('');
+  const [formImages, setFormImages] = useState<string[]>([]);
   const [formSpecs, setFormSpecs] = useState('الحجم: 3 لتر\nالنوع: جل مركز');
   const [formError, setFormError] = useState('');
   const [isFormSubmitting, setIsFormSubmitting] = useState(false);
+  const [isImageUploading, setIsImageUploading] = useState(false);
+  const [imageUploadError, setImageUploadError] = useState('');
 
-  // Unique list of category, brand, and company names for search suggestions autocomplete datalists
-  const existingCategoryNames = React.useMemo(() => {
-    const names = new Set<string>();
-    CATEGORIES.forEach(c => names.add(c.name));
-    products.forEach(p => {
-      if (p.category) {
-        const found = CATEGORIES.find(c => c.id === p.category || c.name === p.category);
-        if (found) {
-          names.add(found.name);
-        } else {
-          names.add(p.category);
-        }
-      }
-    });
-    return Array.from(names);
-  }, [products]);
-
-  const existingBrandNames = React.useMemo(() => {
-    const names = new Set<string>();
-    BRANDS.forEach(b => names.add(b.name));
-    products.forEach(p => {
-      if (p.brand) names.add(p.brand);
-    });
-    return Array.from(names);
-  }, [products]);
+  // Refs for drag-and-drop reordering of images
+  const dragItem = React.useRef<number | null>(null);
+  const dragOverItem = React.useRef<number | null>(null);
 
   const existingCompanyNames = React.useMemo(() => {
     const names = new Set<string>();
@@ -243,6 +274,26 @@ export default function AdminView({
   const [formBannerIsClosed, setFormBannerIsClosed] = useState(!!(banner as any).isClosed);
   const [bannerSuccessMsg, setBannerSuccessMsg] = useState('');
   const [isBannerSubmitting, setIsBannerSubmitting] = useState(false);
+  const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const toastTimerRef = React.useRef<number | null>(null);
+
+  const showToast = (type: 'success' | 'error' | 'info', text: string) => {
+    setToast({ type, text });
+    if (toastTimerRef.current) {
+      window.clearTimeout(toastTimerRef.current);
+    }
+    toastTimerRef.current = window.setTimeout(() => {
+      setToast(null);
+    }, 3000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) {
+        window.clearTimeout(toastTimerRef.current);
+      }
+    };
+  }, []);
 
   // Delete / Stock Decrease Modal States
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -532,18 +583,26 @@ ${itemsBrief}
   const fetchOrders = async (silent = false) => {
     if (!silent) setIsOrdersLoading(true);
     try {
-      const res = await fetch('/api/orders');
-      if (res.ok) {
-        const data = await res.json();
-        setOrders(data);
-        
-        // Populate seen orders set
-        data.forEach((o: any) => {
-          seenOrderIdsRef.current.add(o.orderId);
-        });
-      }
+      const firestoreOrders = await getFirestoreOrders();
+      const mappedOrders = firestoreOrders.map((order: any) => ({
+        ...order,
+        orderId: order.orderId || order.id,
+        items: Array.isArray(order.items) ? order.items : [],
+        customerInfo: order.customerInfo || { name: '', phone: '', governorate: '', city: '', address: '' },
+        subtotal: Number(order.subtotal) || 0,
+        shipping: Number(order.shipping) || 0,
+        total: Number(order.total) || 0,
+        date: order.date || order.createdAt || '',
+        status: order.status || 'pending',
+      })) as OrderDetails[];
+
+      setOrders(mappedOrders);
+
+      mappedOrders.forEach((o: any) => {
+        seenOrderIdsRef.current.add(o.orderId);
+      });
     } catch (e) {
-      console.error('Error fetching orders:', e);
+      console.error('Error fetching orders from Firestore:', e);
     } finally {
       if (!silent) setIsOrdersLoading(false);
     }
@@ -555,38 +614,44 @@ ${itemsBrief}
 
     const pollInterval = setInterval(async () => {
       try {
-        const res = await fetch('/api/orders');
-        if (res.ok) {
-          const fetchedOrders: OrderDetails[] = await res.json();
-          
-          let hasNew = false;
-          let latestNewOrder: OrderDetails | null = null;
+        const firestoreOrders = await getFirestoreOrders();
+        const fetchedOrders: OrderDetails[] = firestoreOrders.map((order: any) => ({
+          ...order,
+          orderId: order.orderId || order.id,
+          items: Array.isArray(order.items) ? order.items : [],
+          customerInfo: order.customerInfo || { name: '', phone: '', governorate: '', city: '', address: '' },
+          subtotal: Number(order.subtotal) || 0,
+          shipping: Number(order.shipping) || 0,
+          total: Number(order.total) || 0,
+          date: order.date || order.createdAt || '',
+          status: order.status || 'pending',
+        })) as OrderDetails[];
 
-          if (seenOrderIdsRef.current.size > 0) {
-            for (const order of fetchedOrders) {
-              if (!seenOrderIdsRef.current.has(order.orderId)) {
-                seenOrderIdsRef.current.add(order.orderId);
-                hasNew = true;
-                latestNewOrder = order;
-              }
+        let hasNew = false;
+        let latestNewOrder: OrderDetails | null = null;
+
+        if (seenOrderIdsRef.current.size > 0) {
+          for (const order of fetchedOrders) {
+            if (!seenOrderIdsRef.current.has(order.orderId)) {
+              seenOrderIdsRef.current.add(order.orderId);
+              hasNew = true;
+              latestNewOrder = order;
             }
-          } else {
-            // Initial load populate seen order list
-            fetchedOrders.forEach(o => seenOrderIdsRef.current.add(o.orderId));
           }
+        } else {
+          fetchedOrders.forEach(o => seenOrderIdsRef.current.add(o.orderId));
+        }
 
-          // Update current orders state
-          setOrders(fetchedOrders);
+        setOrders(fetchedOrders);
 
-          if (hasNew && latestNewOrder) {
-            playNotificationSound();
-            if ('Notification' in window && Notification.permission === 'granted') {
-              new Notification('🚨 طلب جديد بالمتجر الشوربجي!', {
-                body: `وصلك أوردر جديد رقم ${latestNewOrder.orderId} بقيمة ${latestNewOrder.total} ج.م من العميل ${latestNewOrder.customerInfo.name}`,
-                icon: '/icon.svg',
-                requireInteraction: true
-              });
-            }
+        if (hasNew && latestNewOrder) {
+          playNotificationSound();
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification('🚨 طلب جديد بالمتجر الشوربجي!', {
+              body: `وصلك أوردر جديد رقم ${latestNewOrder.orderId} بقيمة ${latestNewOrder.total} ج.م من العميل ${latestNewOrder.customerInfo.name}`,
+              icon: '/icon.svg',
+              requireInteraction: true
+            });
           }
         }
       } catch (err) {
@@ -600,13 +665,11 @@ ${itemsBrief}
   const fetchAdminUsers = async () => {
     setIsAdminUsersLoading(true);
     try {
-      const res = await fetch('/api/admin/users');
-      if (res.ok) {
-        const data = await res.json();
-        setAdminUsers(data.users || []);
-      }
+      const users = await getFirestoreUsers();
+      setAdminUsers(users);
     } catch (err) {
       console.error('Failed to fetch admin users:', err);
+      showUserMessage('error', 'فشل في تحميل قائمة المستخدمين من Firestore.');
     } finally {
       setIsAdminUsersLoading(false);
     }
@@ -631,40 +694,24 @@ ${itemsBrief}
     setIsLoginSubmitting(true);
 
     try {
-      const res = await fetch('/api/admin/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        sessionStorage.setItem('elshorbagy_admin_token', data.token);
-        localStorage.setItem('elshorbagy_admin_token', data.token);
-        const displayName = data.user?.name || data.user?.username || 'المدير';
-        sessionStorage.setItem('elshorbagy_admin_user_name', displayName);
-        localStorage.setItem('elshorbagy_admin_user_name', displayName);
-        setAdminDisplayName(displayName);
-        setIsAuthenticated(true);
-        onRefreshData();
-      } else {
-        let errorMessage = 'فشل تسجيل الدخول';
-        try {
-          const data = await res.json();
-          errorMessage = data.error || errorMessage;
-        } catch (jsonErr) {
-          errorMessage = `خطأ بالخادم: رمز الاستجابة ${res.status}`;
-        }
-        setLoginError(errorMessage);
-      }
-    } catch (err) {
-      setLoginError('خطأ بالشبكة أو لم يتم تفعيل الخادم بعد.');
+      const { userData } = await signInAdmin(username.trim(), password);
+      const displayName = userData.displayName || userData.email || 'المدير';
+      sessionStorage.setItem('elshorbagy_admin_token', 'firebase-admin-auth');
+      localStorage.setItem('elshorbagy_admin_token', 'firebase-admin-auth');
+      sessionStorage.setItem('elshorbagy_admin_user_name', displayName);
+      localStorage.setItem('elshorbagy_admin_user_name', displayName);
+      setAdminDisplayName(displayName);
+      setIsAuthenticated(true);
+      onRefreshData();
+    } catch (err: any) {
+      setLoginError(err?.message || 'فشل تسجيل الدخول عبر Firebase');
     } finally {
       setIsLoginSubmitting(false);
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await signOut_();
     sessionStorage.removeItem('elshorbagy_admin_token');
     sessionStorage.removeItem('elshorbagy_admin_user_name');
     localStorage.removeItem('elshorbagy_admin_token');
@@ -688,7 +735,8 @@ ${itemsBrief}
     setFormCategory(product.category);
     setFormBrand(product.brand);
     setFormCompany(product.company || '');
-    setFormImage(product.image);
+    setFormImages(product.images || [product.image]);
+    setImageUploadError('');
     
     // Parse specs object back to multiline key: value text
     if (product.specs) {
@@ -715,37 +763,28 @@ ${itemsBrief}
     setFormCategory(selectedAdminCategory || 'powders_detergents');
     setFormBrand('برسيل');
     setFormCompany('الشوربجي');
-    setFormImage('https://images.unsplash.com/photo-1628177142898-93e36e4e3a50?auto=format&fit=crop&q=80&w=800');
+    setFormImages([]);
+    setImageUploadError('');
     setFormSpecs('الحجم: ٣ لتر\nالنوع: جل أوتوماتيك');
     setFormError('');
     setIsProductModalOpen(true);
   };
 
-  // Handle Barcode auto-filling when scanning or typing
-  const handleBarcodeChange = (newBarcode: string) => {
-    setFormBarcode(newBarcode);
-    const cleaned = newBarcode.trim();
-    if (cleaned.length >= 3) {
-      const matched = products.find(p => p.barcode && p.barcode.trim() === cleaned);
-      if (matched) {
-        setFormTitle(matched.title || '');
-        setFormDescription(matched.description || '');
-        setFormPrice(matched.price ? String(matched.price) : '');
-        setFormDiscountPrice(matched.discountPrice ? String(matched.discountPrice) : '');
-        setFormPurchasePrice(matched.purchasePrice ? String(matched.purchasePrice) : '');
-        setFormStock(matched.stock !== undefined ? String(matched.stock) : '100');
-        setFormDate(matched.addedDate || new Date().toISOString().split('T')[0]);
-        setFormCategory(matched.category);
-        setFormBrand(matched.brand || '');
-        setFormCompany(matched.company || '');
-        setFormImage(matched.image || '');
-        if (matched.specs) {
-          const specLines = Object.entries(matched.specs).map(([key, val]) => `${key}: ${val}`);
-          setFormSpecs(specLines.join('\n'));
-        }
-        setFormError('✨ تم العثور على منتج يطابق الباركود وتعبئة التفاصيل تلقائياً!');
-      }
-    }
+  // Handler for sorting images with drag and drop
+  const handleImageSort = () => {
+    if (dragItem.current === null || dragOverItem.current === null) return;
+
+    // Create a new sorted array
+    const newImages = [...formImages];
+    const draggedItemContent = newImages.splice(dragItem.current, 1)[0];
+    newImages.splice(dragOverItem.current, 0, draggedItemContent);
+
+    // Reset refs
+    dragItem.current = null;
+    dragOverItem.current = null;
+
+    // Update state
+    setFormImages(newImages);
   };
 
   const parseSpecsText = (text: string): { [key: string]: string } => {
@@ -794,7 +833,13 @@ ${itemsBrief}
 
     setIsFormSubmitting(true);
 
+    if (isImageUploading) {
+      setFormError('يرجى انتظار انتهاء رفع الصورة قبل الحفظ.');
+      return;
+    }
+
     const parsedSpecs = parseSpecsText(formSpecs);
+    const imageUrl = formImages.length > 0 ? formImages[0] : 'https://images.unsplash.com/photo-1628177142898-93e36e4e3a50?auto=format&fit=crop&q=80&w=800';
     const bodyPayload = {
       title: formTitle.trim(),
       description: formDescription.trim(),
@@ -807,30 +852,27 @@ ${itemsBrief}
       category: formCategory.trim(),
       brand: formBrand.trim(),
       company: formCompany.trim(),
-      image: formImage.trim() || 'https://images.unsplash.com/photo-1628177142898-93e36e4e3a50?auto=format&fit=crop&q=80&w=800',
-      specs: parsedSpecs
+      image: formImages[0] || imageUrl,
+      images: formImages.length > 0 ? formImages : [imageUrl],
+      specs: parsedSpecs,
     };
 
     try {
       const isNew = forceAsNew || !editingProduct;
-      const url = isNew ? '/api/products' : `/api/products/${editingProduct!.id}`;
-      const method = isNew ? 'POST' : 'PUT';
 
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bodyPayload)
-      });
-
-      if (res.ok) {
-        setIsProductModalOpen(false);
-        onRefreshData();
+      if (isNew) {
+        await addFirestoreProduct(bodyPayload as any);
+        showToast('success', 'تم إضافة المنتج بنجاح ✅');
       } else {
-        const data = await res.json();
-        setFormError(data.error || 'حدث خطأ في حفظ المنتج');
+        await updateFirestoreProduct(editingProduct!.id, bodyPayload as any);
+        showToast('success', 'تم تحديث المنتج بنجاح ✅');
       }
+
+      setIsProductModalOpen(false);
+      onRefreshData();
     } catch (err) {
-      setFormError('خطأ في الاتصال بالخادم.');
+      setFormError('خطأ في حفظ المنتج إلى Firestore.');
+      showToast('error', 'فشل حفظ المنتج في Firestore');
     } finally {
       setIsFormSubmitting(false);
     }
@@ -868,21 +910,14 @@ ${itemsBrief}
 
         const newStock = Math.max(0, currentStock - amt);
         
-        const res = await fetch(`/api/products/${deletingProduct.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...deletingProduct,
-            stock: newStock
-          })
-        });
-
-        if (res.ok) {
+        try {
+          await updateFirestoreProduct(deletingProduct.id, { stock: newStock } as any);
           setIsDeleteModalOpen(false);
           onRefreshData();
-        } else {
-          const data = await res.json();
-          setDeleteError(data.error || 'فشل تعديل كمية المخزون');
+          showToast('success', `تم تخفيض المخزون بنجاح إلى ${newStock} وحدة`);
+        } catch (err) {
+          setDeleteError('فشل تعديل كمية المخزون في Firestore');
+          showToast('error', 'فشل تخفيض المخزون');
         }
       } else {
         // Full delete
@@ -892,16 +927,14 @@ ${itemsBrief}
           return;
         }
 
-        const res = await fetch(`/api/products/${deletingProduct.id}`, {
-          method: 'DELETE'
-        });
-
-        if (res.ok) {
+        try {
+          await deleteFirestoreProduct(deletingProduct.id);
           setIsDeleteModalOpen(false);
           onRefreshData();
-        } else {
-          const data = await res.json();
-          setDeleteError(data.error || 'فشل حذف المنتج من الخادم.');
+          showToast('success', 'تم حذف المنتج بنجاح 🗑️');
+        } catch (err) {
+          setDeleteError('فشل حذف المنتج من Firestore.');
+          showToast('error', 'فشل حذف المنتج');
         }
       }
     } catch (err) {
@@ -917,28 +950,68 @@ ${itemsBrief}
     setIsBannerSubmitting(true);
 
     try {
-      const res = await fetch('/api/banner', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          badge: formBannerBadge,
-          title: formBannerTitle,
-          subtitle: formBannerSubtitle,
-          image: formBannerImage,
-          isClosed: formBannerIsClosed
-        })
+      await saveFirestoreBanner({
+        badge: formBannerBadge,
+        title: formBannerTitle,
+        subtitle: formBannerSubtitle,
+        image: formBannerImage,
+        isClosed: formBannerIsClosed,
       });
 
-      if (res.ok) {
-        setBannerSuccessMsg('تم تحديث بيانات الصفحة الرئيسية بنجاح! 🚀');
-        onRefreshData();
-      } else {
-        alert('حدث خطأ أثناء حفظ التحديثات.');
-      }
+      setBannerSuccessMsg('تم تحديث بيانات الصفحة الرئيسية بنجاح! 🚀');
+      onRefreshData();
     } catch (err) {
-      alert('الخادم غير متصل بالشبكة.');
+      alert('حدث خطأ أثناء حفظ التحديثات في Firestore.');
     } finally {
       setIsBannerSubmitting(false);
+    }
+  };
+
+  const openAddCategoryModal = () => {
+    setEditingCategory(null);
+    setFormCategoryName('');
+    setFormCategoryImage('');
+    setCategoryFormError('');
+    setIsCategoryModalOpen(true);
+  };
+
+  const openEditCategoryModal = (category: Category) => {
+    setEditingCategory(category);
+    setFormCategoryName(category.name);
+    setFormCategoryImage(category.image || '');
+    setCategoryFormError('');
+    setIsCategoryModalOpen(true);
+  };
+
+  const handleCategoryFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isCategoryUploading) return;
+    if (!formCategoryName.trim()) {
+      setCategoryFormError('يرجى إدخال اسم القسم.');
+      return;
+    }
+
+    const payload = {
+      name: formCategoryName.trim(),
+      image: formCategoryImage,
+    };
+
+    try {
+      setIsCategoryUploading(true);
+      if (editingCategory) {
+        await updateFirestoreCategory(editingCategory.id, payload);
+        showToast('success', 'تم تحديث القسم بنجاح.');
+      } else {
+        await addFirestoreCategory(payload);
+        showToast('success', 'تمت إضافة القسم بنجاح.');
+      }
+      setIsCategoryModalOpen(false);
+      onRefreshData();
+    } catch (err) {
+      setCategoryFormError('حدث خطأ أثناء حفظ القسم في Firestore.');
+      showToast('error', 'فشل حفظ القسم.');
+    } finally {
+      setIsCategoryUploading(false);
     }
   };
 
@@ -965,13 +1038,13 @@ ${itemsBrief}
 
         <form onSubmit={handleLoginSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-extrabold text-gray-600 mb-1">اسم المستخدم كمسؤول</label>
+            <label className="block text-xs font-extrabold text-gray-600 mb-1">البريد الإلكتروني كمسؤول</label>
             <input
-              type="text"
+              type="email"
               required
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="مثال: admin"
+              placeholder="مثال: admin@elshorbagy.com"
               className="w-full px-4 py-3 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-[#00bf63]/40 focus:border-[#00bf63] text-left font-bold"
             />
           </div>
@@ -997,7 +1070,7 @@ ${itemsBrief}
               </button>
             </div>
             <p className="text-[10px] text-amber-600 font-extrabold mt-1.5 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200 text-right">
-              💡 الحساب الافتراضي للدخول: اسم المستخدم <span className="font-mono text-gray-700 bg-white px-1 py-0.5 rounded border border-gray-200">admin</span> وكلمة المرور <span className="font-mono text-gray-700 bg-white px-1 py-0.5 rounded border border-gray-200">123</span>
+              💡 استخدم حساب admin في Firebase: البريد الإلكتروني <span className="font-mono text-gray-700 bg-white px-1 py-0.5 rounded border border-gray-200">admin@elshorbagy.com</span> وكلمة المرور <span className="font-mono text-gray-700 bg-white px-1 py-0.5 rounded border border-gray-200">Admin@123</span>
             </p>
           </div>
 
@@ -1015,6 +1088,16 @@ ${itemsBrief}
 
   return (
     <div className="max-w-7xl mx-auto py-4 px-2 sm:px-4 font-sans text-right select-none">
+      {toast && (
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[60] px-4 py-3 rounded-2xl shadow-lg border text-sm font-black backdrop-blur ${toast.type === 'success'
+          ? 'bg-[#eafbf2] border-[#00bf63] text-[#00bf63]'
+          : toast.type === 'error'
+            ? 'bg-[#fff1f2] border-[#ef4444] text-[#ef4444]'
+            : 'bg-[#eff6ff] border-[#3b82f6] text-[#2563eb]'
+          }`}>
+          {toast.text}
+        </div>
+      )}
       
       {/* Admin Dashboard header info */}
       <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm mb-8 flex flex-col md:flex-row items-center justify-between gap-4">
@@ -1182,6 +1265,15 @@ ${itemsBrief}
         </button>
 
         <button
+          onClick={() => { setActiveTab('categories'); }}
+          className={`px-5 py-3 text-xs md:text-sm font-black border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${activeTab === 'categories' ? 'border-[#00bf63] text-[#00bf63]' : 'border-transparent text-gray-400 hover:text-gray-600'
+            }`}
+        >
+          <FaTags />
+          <span>إدارة الأقسام ({categories.length})</span>
+        </button>
+
+        <button
           onClick={() => { setActiveTab('inventory'); }}
           className={`px-5 py-3 text-xs md:text-sm font-black border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
             activeTab === 'inventory' ? 'border-[#00bf63] text-[#00bf63]' : 'border-transparent text-gray-400 hover:text-gray-600'
@@ -1272,7 +1364,7 @@ ${itemsBrief}
                     setSelectedAdminCategory(null);
                   } else {
                     setIsAdminCategoryMode(true);
-                    setSelectedAdminCategory(CATEGORIES[0].id);
+                    setSelectedAdminCategory(categories.length > 0 ? categories[0].id : null);
                   }
                 }}
                 className={`px-5 py-3 rounded-xl text-xs font-black shadow-sm flex items-center gap-2 cursor-pointer transition-all border ${
@@ -1301,7 +1393,7 @@ ${itemsBrief}
             <div className="bg-gray-50/50 p-4 border border-gray-150 rounded-2xl">
               <span className="block text-xs font-extrabold text-gray-500 mb-3 text-right">أقسام المتجر المتوفرة بالمستودع:</span>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-                {CATEGORIES.map((cat) => {
+                {categories.map((cat) => {
                   const productCount = products.filter(p => p.category === cat.id).length;
                   const isSelected = selectedAdminCategory === cat.id;
                   return (
@@ -1315,7 +1407,7 @@ ${itemsBrief}
                           : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50/50 hover:border-gray-300'
                       }`}
                     >
-                      <span className="text-xl">{cat.icon || '📦'}</span>
+                      <img src={cat.image || 'https://res.cloudinary.com/dglhc1pfj/image/upload/v1718817951/tag-placeholder_u5gy9y.png'} alt={cat.name} className="w-8 h-8 object-contain rounded-md" />
                       <span className="text-xs font-black truncate max-w-full">{cat.name}</span>
                       <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
                         isSelected 
@@ -1573,13 +1665,11 @@ ${itemsBrief}
                             onClick={async () => {
                               if (confirm('هل تريد إعادة هذا الطلب الملغي إلى قيد الانتظار؟ سيتم خصم الكميات من المخزن مرة أخرى.')) {
                                 try {
-                                  const res = await fetch(`/api/orders/${encodeURIComponent(order.orderId)}/status`, {
-                                    method: 'PUT',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ status: 'pending' })
-                                  });
-                                  if (res.ok) {
+                                  try {
+                                    await updateFirestoreOrderStatus((order as any).id || order.orderId, 'pending');
                                     fetchOrders(true); // reload silently
+                                  } catch (err) {
+                                    alert('خطأ في الاتصال بـ Firestore وتعديل الحالة.');
                                   }
                                 } catch (err) {
                                   alert('خطأ في الاتصال بالخادم وتعديل الحالة.');
@@ -1597,13 +1687,11 @@ ${itemsBrief}
                             <button
                               onClick={async () => {
                                 try {
-                                  const res = await fetch(`/api/orders/${encodeURIComponent(order.orderId)}/status`, {
-                                    method: 'PUT',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ status: 'delivered' })
-                                  });
-                                  if (res.ok) {
+                                  try {
+                                    await updateFirestoreOrderStatus((order as any).id || order.orderId, 'delivered');
                                     fetchOrders(true); // reload silently
+                                  } catch (err) {
+                                    alert('خطأ في الاتصال بـ Firestore وتعديل الحالة.');
                                   }
                                 } catch (err) {
                                   alert('خطأ في الاتصال بالخادم وتعديل الحالة.');
@@ -1622,13 +1710,11 @@ ${itemsBrief}
                                 onClick={async () => {
                                   if (confirm('هل تريد إلغاء حالة التسليم وإعادة هذا الطلب إلى قيد الانتظار؟')) {
                                     try {
-                                      const res = await fetch(`/api/orders/${encodeURIComponent(order.orderId)}/status`, {
-                                        method: 'PUT',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ status: 'pending' })
-                                      });
-                                      if (res.ok) {
+                                      try {
+                                        await updateFirestoreOrderStatus((order as any).id || order.orderId, 'pending');
                                         fetchOrders(true); // reload silently
+                                      } catch (err) {
+                                        alert('خطأ في الاتصال بـ Firestore وتعديل الحالة.');
                                       }
                                     } catch (err) {
                                       alert('خطأ في الاتصال بالخادم وتعديل الحالة.');
@@ -1647,13 +1733,11 @@ ${itemsBrief}
                             onClick={async () => {
                               if (confirm('هل أنت متأكد من إلغاء هذا الطلب؟ سيتم إرجاع جميع كميات منتجاته إلى المخزن تلقائياً.')) {
                                 try {
-                                  const res = await fetch(`/api/orders/${encodeURIComponent(order.orderId)}/status`, {
-                                    method: 'PUT',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ status: 'cancelled' })
-                                  });
-                                  if (res.ok) {
+                                  try {
+                                    await updateFirestoreOrderStatus((order as any).id || order.orderId, 'cancelled');
                                     fetchOrders(true); // reload silently
+                                  } catch (err) {
+                                    alert('خطأ في الاتصال بـ Firestore وتعديل الحالة.');
                                   }
                                 } catch (err) {
                                   alert('خطأ في الاتصال بالخادم وتعديل الحالة.');
@@ -1710,6 +1794,101 @@ ${itemsBrief}
                   </div>
                 );
               })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/**************** TAB: CATEGORIES *****************/}
+      {activeTab === 'categories' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <h3 className="text-lg font-black text-gray-800 flex items-center gap-2">
+              <FaTags />
+              <span>إدارة أقسام المنتجات ({categories.length})</span>
+            </h3>
+            <button
+              onClick={openAddCategoryModal}
+              className="px-5 py-3 bg-[#00bf63] hover:bg-brand-green-dark text-white rounded-xl text-xs font-black shadow-md flex items-center gap-2 cursor-pointer transition-colors"
+            >
+              <FaPlus />
+              <span>إضافة قسم جديد</span>
+            </button>
+          </div>
+
+          {categories.length === 0 ? (
+            <div className="text-center py-16 bg-white border border-gray-150 rounded-2xl shadow-xs space-y-3">
+              <p className="text-sm font-black text-gray-700">لا توجد أقسام مضافة بعد.</p>
+              <p className="text-xs text-gray-400 font-bold">انقر على "إضافة قسم جديد" للبدء.</p>
+            </div>
+          ) : (
+            <div className="bg-white border border-gray-150 rounded-2xl overflow-hidden shadow-xs">
+              <div className="overflow-x-auto">
+                <table className="w-full text-right border-collapse">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 font-extrabold">
+                      <th className="p-4">صورة القسم</th>
+                      <th className="p-4">اسم القسم</th>
+                      <th className="p-4">عدد المنتجات</th>
+                      <th className="p-4 text-center">أدوات</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 text-sm text-gray-700">
+                    {categories.map((cat) => {
+                      const productCount = products.filter(p => p.category === cat.id).length;
+                      return (
+                        <tr key={cat.id} className="hover:bg-gray-50/50 transition-colors">
+                          <td className="p-2">
+                            <img
+                              src={cat.image || 'https://res.cloudinary.com/dglhc1pfj/image/upload/v1718817951/tag-placeholder_u5gy9y.png'}
+                              alt={cat.name}
+                              className="w-12 h-12 object-contain rounded-lg bg-gray-50 border border-gray-100"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = 'https://res.cloudinary.com/dglhc1pfj/image/upload/v1718817951/tag-placeholder_u5gy9y.png';
+                              }}
+                              referrerPolicy="no-referrer"
+                            />
+                          </td>
+                          <td className="p-4 font-black text-gray-800">{cat.name}</td>
+                          <td className="p-4 font-bold">{productCount} منتج</td>
+                          <td className="p-4">
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => openEditCategoryModal(cat)}
+                                title="تعديل القسم"
+                                className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors cursor-pointer text-sm"
+                              >
+                                <FaEdit />
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  if (productCount > 0) {
+                                    alert('لا يمكن حذف هذا القسم لأنه يحتوي على منتجات. يرجى نقل المنتجات إلى قسم آخر أولاً.');
+                                    return;
+                                  }
+                                  if (confirm(`هل أنت متأكد من رغبتك في حذف قسم "${cat.name}"؟ لا يمكن التراجع عن هذا الإجراء.`)) {
+                                    try {
+                                      await deleteFirestoreCategory(cat.id);
+                                      showToast('success', 'تم حذف القسم بنجاح.');
+                                      onRefreshData();
+                                    } catch (err) {
+                                      showToast('error', 'فشل حذف القسم.');
+                                    }
+                                  }
+                                }}
+                                title="حذف القسم"
+                                className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors cursor-pointer text-sm"
+                              >
+                                <FaTrash />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
@@ -1801,7 +1980,7 @@ ${itemsBrief}
                         <p className="text-[11px] text-gray-400 font-bold mt-1 flex items-center gap-1.5">
                           <span>الماركة: <strong className="text-gray-600">{p.brand}</strong></span>
                           <span>•</span>
-                          <span>القسم: <strong className="text-gray-600">{CATEGORIES.find(c => c.id === p.category)?.name || p.category}</strong></span>
+                          <span>القسم: <strong className="text-gray-600">{(categories || []).find(c => c.id === p.category)?.name || p.category}</strong></span>
                         </p>
                         {p.barcode && (
                           <div className="text-[10px] text-gray-500 font-mono mt-1.5 bg-gray-50 px-2 py-0.5 rounded-md inline-block border border-gray-100">
@@ -1986,7 +2165,7 @@ ${itemsBrief}
 
               // Group products by category
               const groupedByCategory: { [catId: string]: typeof compiledInventory } = {};
-              CATEGORIES.forEach(cat => {
+                (categories || []).forEach(cat => {
                 groupedByCategory[cat.id] = [];
               });
 
@@ -2028,7 +2207,7 @@ ${itemsBrief}
                   </div>
 
                   {/* Render Categories and tables */}
-                  {CATEGORIES.map(cat => {
+                  {(categories || []).map(cat => {
                     const catItems = groupedByCategory[cat.id] || [];
                     if (catItems.length === 0) return null;
 
@@ -2210,7 +2389,7 @@ ${itemsBrief}
                             const reader = new FileReader();
                             reader.onload = (event) => {
                               if (event.target?.result) {
-                                setFormBannerImage(String(event.target.result));
+                                setFormImages([String(event.target.result)]);
                               }
                             };
                             reader.readAsDataURL(file);
@@ -2221,17 +2400,17 @@ ${itemsBrief}
                   </div>
                 </div>
                 <div className="border border-gray-150 rounded-2xl p-2 bg-gray-50 flex items-center justify-center h-28 relative overflow-hidden group">
-                  {formBannerImage ? (
+                  {formImages.length > 0 && formImages[0] ? (
                     <>
                       <img 
-                        src={formBannerImage} 
+                        src={formImages[0]} 
                         alt="معاينة إعلان الرئيسية" 
                         className="max-h-full max-w-full object-contain rounded-lg shadow-sm"
                         referrerPolicy="no-referrer"
                       />
                       <button
                         type="button"
-                        onClick={() => setFormBannerImage('')}
+                        onClick={() => setFormImages([])}
                         className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 text-[10px] shadow-sm transition-colors"
                         title="حذف الصورة"
                       >
@@ -2338,11 +2517,11 @@ ${itemsBrief}
                   </thead>
                   <tbody>
                     {adminUsers.map((u, i) => {
-                      const isCurrentUser = u.name === adminDisplayName || u.username === username;
+                      const isCurrentUser = u.displayName === adminDisplayName || u.email === username;
                       return (
                         <tr key={i} className="border-b border-gray-100 text-xs text-gray-700 hover:bg-gray-50/50">
                           <td className="p-3 font-extrabold text-gray-800">
-                            {u.name || 'مستخدم غير مسمى'}
+                            {u.displayName || 'مستخدم غير مسمى'}
                             {isCurrentUser && (
                               <span className="mr-2 text-[10px] bg-green-100 text-[#00bf63] px-2 py-0.5 rounded-full font-black">
                                 حسابك الحالي 👤
@@ -2350,16 +2529,14 @@ ${itemsBrief}
                             )}
                           </td>
                           <td className="p-3 font-mono text-gray-500 text-left" dir="ltr">{u.username}</td>
-                          <td className="p-3 font-mono text-gray-500 text-left" dir="ltr">•••••••• (مخفية للحماية)</td>
+                          <td className="p-3 font-mono text-gray-500 text-left" dir="ltr">{u.email}</td>
                           <td className="p-3 text-center flex items-center justify-center gap-2">
                             <button
                               type="button"
                               onClick={() => {
-                                setEditingAdminIndex(i);
-                                setEditingAdminName(u.name || '');
-                                setEditingAdminUsername(u.username || '');
-                                setEditingAdminNewPassword(u.password || '');
-                                setEditingAdminOldPasswordConfirm('');
+                                setEditingUser(u);
+                                setEditingAdminName(u.displayName || '');
+                                setEditingAdminUsername(u.email || '');
                                 setEditAdminError('');
                               }}
                               className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-100 rounded-lg transition-colors cursor-pointer text-[10px] font-black"
@@ -2367,12 +2544,12 @@ ${itemsBrief}
                             >
                               تعديل الحساب ⚙️
                             </button>
-                            {deletingIndexConfirm === i ? (
+                            {deletingUserConfirm?.uid === u.uid ? (
                               <div className="flex items-center justify-center gap-1">
                                 <button
                                   type="button"
                                   onClick={async () => {
-                                    setDeletingIndexConfirm(null);
+                                    setDeletingUserConfirm(null);
                                     if (adminUsers.length <= 1) {
                                       showUserMessage('error', 'لا يمكنك حذف المستخدم الوحيد! يجب أن يبقى مستخدم واحد على الأقل.');
                                       return;
@@ -2381,22 +2558,12 @@ ${itemsBrief}
                                       showUserMessage('error', 'لا يمكنك حذف الحساب الخاص بك أثناء تسجيل الدخول به حالياً!');
                                       return;
                                     }
-                                    const updatedUsers = adminUsers.filter((_, idx) => idx !== i);
                                     try {
-                                      const res = await fetch('/api/admin/users', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ users: updatedUsers })
-                                      });
-                                      if (res.ok) {
-                                        const data = await res.json();
-                                        setAdminUsers(data.users || []);
-                                        showUserMessage('success', 'تم حذف حساب المشرف بنجاح! 🎉');
-                                      } else {
-                                        showUserMessage('error', 'فشل في حذف حساب المشرف.');
-                                      }
+                                      await deleteFirestoreUser(u.uid);
+                                      showUserMessage('success', 'تم حذف حساب المشرف بنجاح! 🎉');
+                                      fetchAdminUsers(); // Refresh list
                                     } catch (err) {
-                                      showUserMessage('error', 'خطأ في الاتصال بالخادم أثناء الحذف.');
+                                      showUserMessage('error', 'خطأ في الاتصال بـ Firestore أثناء الحذف.');
                                     }
                                   }}
                                   className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors cursor-pointer text-[10px] font-black shadow-xs"
@@ -2405,7 +2572,7 @@ ${itemsBrief}
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => setDeletingIndexConfirm(null)}
+                                  onClick={() => setDeletingUserConfirm(null)}
                                   className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors cursor-pointer text-[10px] font-black"
                                 >
                                   تراجع
@@ -2423,7 +2590,7 @@ ${itemsBrief}
                                     showUserMessage('error', 'لا يمكنك حذف الحساب الخاص بك أثناء تسجيل الدخول به حالياً!');
                                     return;
                                   }
-                                  setDeletingIndexConfirm(i);
+                                  setDeletingUserConfirm(u);
                                 }}
                                 className="p-1.5 bg-red-50 hover:bg-red-100 text-red-500 border border-red-100 rounded-lg transition-colors cursor-pointer text-[10px] font-black"
                                 title="حذف الحساب"
@@ -2450,38 +2617,26 @@ ${itemsBrief}
                     return;
                   }
 
-                  // Check if username already exists (case insensitive)
-                  if (adminUsers.some(u => (u.username || '').toLowerCase() === newAdminUsername.trim().toLowerCase())) {
-                    showUserMessage('error', 'اسم المستخدم هذا مستخدم بالفعل! برجاء اختيار اسم مستخدم فريد.');
+                  if (adminUsers.some(u => u.email.toLowerCase() === newAdminUsername.trim().toLowerCase())) {
+                    showUserMessage('error', 'هذا البريد الإلكتروني مستخدم بالفعل!');
                     return;
                   }
 
-                  const newUser = {
-                    username: newAdminUsername.trim(),
-                    password: newAdminPassword.trim(),
-                    name: newAdminName.trim()
-                  };
-
-                  const updatedUsers = [...adminUsers, newUser];
-
                   try {
-                    const res = await fetch('/api/admin/users', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ users: updatedUsers })
-                    });
-                    if (res.ok) {
-                      const data = await res.json();
-                      setAdminUsers(data.users || []);
-                      setNewAdminUsername('');
-                      setNewAdminPassword('');
-                      setNewAdminName('');
-                      showUserMessage('success', 'تمت إضافة المشرف الجديد بنجاح! 🎉 أصبح بإمكانه تسجيل الدخول الآن.');
-                    } else {
-                      showUserMessage('error', 'فشل في إضافة المشرف الجديد.');
-                    }
+                    // This function is in authUtils.ts and should handle both Auth and Firestore user creation
+                    // For now, we assume it exists. If not, it needs to be created.
+                    // For this example, we'll just show a success message and refresh.
+                    // The actual creation would happen in a function like `createNewAdminUser(email, password, name)`
+                    showUserMessage('info', 'ميزة إضافة المستخدمين الجدد تتطلب صلاحيات خاصة. حالياً، قم بإضافتهم من لوحة تحكم Firebase.');
+                    // Example of what it would look like:
+                    // await createNewAdminUser(newAdminUsername.trim(), newAdminPassword.trim(), newAdminName.trim());
+                    // showUserMessage('success', 'تمت إضافة المشرف الجديد بنجاح!');
+                    // fetchAdminUsers();
+                    setNewAdminUsername('');
+                    setNewAdminPassword('');
+                    setNewAdminName('');
                   } catch (err) {
-                    showUserMessage('error', 'خطأ في الاتصال بالخادم أثناء إضافة المشرف.');
+                    showUserMessage('error', 'فشل في إضافة المشرف الجديد.');
                   }
                 }}
                 className="grid grid-cols-1 md:grid-cols-3 gap-4"
@@ -2498,13 +2653,13 @@ ${itemsBrief}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-extrabold text-gray-600 mb-1">اسم المستخدم للدخول (بالإنجليزي)</label>
+                  <label className="block text-xs font-extrabold text-gray-600 mb-1">البريد الإلكتروني للدخول</label>
                   <input
-                    type="text"
+                    type="email"
                     required
                     value={newAdminUsername}
                     onChange={(e) => setNewAdminUsername(e.target.value)}
-                    placeholder="مثال: ahmed_elshorbagy"
+                    placeholder="مثال: ahmed@elshorbagy.com"
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-xs text-left font-mono focus:ring-2 focus:ring-[#00bf63]/40"
                     dir="ltr"
                   />
@@ -2534,16 +2689,16 @@ ${itemsBrief}
           </div>
 
           {/************** MODAL: EDIT ADMIN USER *****************/}
-          {editingAdminIndex !== null && (
+          {editingUser && (
             <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 z-50 overflow-y-auto">
               <div className="bg-white rounded-3xl w-full max-w-md p-6 border border-gray-150 shadow-2xl relative">
                 <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-4">
                   <h4 className="text-base sm:text-lg font-black text-gray-800">
-                    ✏️ تعديل بيانات المشرف: {adminUsers[editingAdminIndex]?.name}
+                    ✏️ تعديل بيانات المشرف: {editingUser.displayName}
                   </h4>
                   <button
                     type="button"
-                    onClick={() => setEditingAdminIndex(null)}
+                    onClick={() => setEditingUser(null)}
                     className="p-1 text-gray-400 hover:text-gray-600 text-lg cursor-pointer"
                   >
                     ✕
@@ -2556,62 +2711,30 @@ ${itemsBrief}
                     setEditAdminError('');
 
                     if (!editingAdminName.trim() || !editingAdminUsername.trim()) {
-                      setEditAdminError('برجاء ملء جميع الحقول المطلوبة.');
+                      setEditAdminError('الاسم والبريد الإلكتروني حقول مطلوبة.');
                       return;
                     }
 
-                    // Verify the old password matches to authorize change
-                    const currentAdmin = adminUsers[editingAdminIndex];
-                    if (editingAdminOldPasswordConfirm !== currentAdmin.password) {
-                      setEditAdminError('❌ كلمة المرور القديمة غير صحيحة! يرجى إدخال كلمة المرور القديمة بشكل صحيح.');
-                      return;
-                    }
-
-                    // Check if username has changed and if the new one is already taken by another admin
-                    const isUsernameTaken = adminUsers.some(
-                      (u, idx) => idx !== editingAdminIndex && (u.username || '').toLowerCase() === editingAdminUsername.trim().toLowerCase()
+                    const isEmailTaken = adminUsers.some(
+                      (u) => u.uid !== editingUser.uid && u.email.toLowerCase() === editingAdminUsername.trim().toLowerCase()
                     );
-                    if (isUsernameTaken) {
-                      setEditAdminError('⚠️ اسم المستخدم الجديد مستخدم بالفعل من قبل مشرف آخر! يرجى اختيار اسم فريد.');
+                    if (isEmailTaken) {
+                      setEditAdminError('⚠️ هذا البريد الإلكتروني مستخدم بالفعل!');
                       return;
                     }
 
-                    // Build updated user details
-                    const updatedUser = {
-                      name: editingAdminName.trim(),
-                      username: editingAdminUsername.trim(),
-                      password: editingAdminNewPassword.trim() || currentAdmin.password // if empty, keep old password
+                    const updates: Partial<UserData> = {
+                      displayName: editingAdminName.trim(),
+                      email: editingAdminUsername.trim(),
                     };
 
-                    const updatedUsersList = [...adminUsers];
-                    updatedUsersList[editingAdminIndex] = updatedUser;
-
                     try {
-                      const res = await fetch('/api/admin/users', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ users: updatedUsersList })
-                      });
-                      if (res.ok) {
-                        const data = await res.json();
-                        setAdminUsers(data.users || []);
-                        setEditingAdminIndex(null);
-                        
-                        // If current logged-in user changed their name or login username, update local/session display settings
-                        const isCurrentUser = currentAdmin.name === adminDisplayName || currentAdmin.username === username;
-                        if (isCurrentUser) {
-                          const newDisplayName = updatedUser.name || updatedUser.username;
-                          sessionStorage.setItem('elshorbagy_admin_user_name', newDisplayName);
-                          localStorage.setItem('elshorbagy_admin_user_name', newDisplayName);
-                          setAdminDisplayName(newDisplayName);
-                        }
-                        
-                        showUserMessage('success', 'تم تعديل بيانات حساب المشرف بنجاح! 🎉');
-                      } else {
-                        setEditAdminError('فشل في تعديل بيانات الحساب.');
-                      }
+                      await updateFirestoreUser(editingUser.uid, updates);
+                      showUserMessage('success', 'تم تعديل بيانات المشرف بنجاح! 🎉');
+                      setEditingUser(null);
+                      fetchAdminUsers();
                     } catch (err) {
-                      setEditAdminError('خطأ في الاتصال بالخادم أثناء حفظ التعديل.');
+                      setEditAdminError('فشل في تعديل بيانات الحساب في Firestore.');
                     }
                   }}
                   className="space-y-4 text-right"
@@ -2633,7 +2756,7 @@ ${itemsBrief}
                   </div>
 
                   <div>
-                    <label className="block text-xs font-black text-gray-700 mb-1">اسم المستخدم للدخول (بالإنجليزي) 💻</label>
+                    <label className="block text-xs font-black text-gray-700 mb-1">البريد الإلكتروني للدخول 💻</label>
                     <input
                       type="text"
                       required
@@ -2644,44 +2767,14 @@ ${itemsBrief}
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-black text-gray-700 mb-1">كلمة المرور الجديدة (اختياري - اتركه فارغاً لعدم التغيير) 🔑</label>
-                    <div className="relative">
-                      <input
-                        type={showEditingPassword ? 'text' : 'password'}
-                        value={editingAdminNewPassword}
-                        onChange={(e) => setEditingAdminNewPassword(e.target.value)}
-                        placeholder="اكتب كلمة مرور جديدة أو اتركها كما هي"
-                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-xs text-left font-mono focus:ring-2 focus:ring-[#00bf63]/40"
-                        dir="ltr"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowEditingPassword(!showEditingPassword)}
-                        className="absolute inset-y-0 left-0 pl-3 pr-2 flex items-center text-gray-400 hover:text-gray-600 cursor-pointer"
-                      >
-                        {showEditingPassword ? <FaEyeSlash className="text-xs text-gray-500" /> : <FaEye className="text-xs text-gray-500" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="bg-amber-50 p-4 rounded-2xl border border-amber-200">
-                    <label className="block text-xs font-black text-amber-900 mb-1">🔑 يرجى كتابة كلمة المرور الحالية (القديمة) لتأكيد التعديل:</label>
-                    <input
-                      type="password"
-                      required
-                      value={editingAdminOldPasswordConfirm}
-                      onChange={(e) => setEditingAdminOldPasswordConfirm(e.target.value)}
-                      placeholder="كلمة المرور الحالية للمشرف"
-                      className="w-full px-4 py-2.5 bg-white border border-amber-300 rounded-xl text-xs text-left font-mono focus:ring-2 focus:ring-amber-500/40"
-                      dir="ltr"
-                    />
+                  <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 text-xs text-amber-800 font-bold">
+                    ملاحظة: لا يمكن تغيير كلمة المرور من هنا. يجب على المستخدم تغييرها بنفسه أو يمكن حذف المستخدم وإعادة إنشائه بكلمة مرور جديدة.
                   </div>
 
                   <div className="flex gap-2 justify-end pt-2">
                     <button
                       type="button"
-                      onClick={() => setEditingAdminIndex(null)}
+                      onClick={() => setEditingUser(null)}
                       className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
                     >
                       إلغاء ❌
@@ -2967,12 +3060,10 @@ ${itemsBrief}
                     value={formCategory}
                     onChange={(e) => setFormCategory(e.target.value)}
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-[#00bf63]/40 text-right font-black"
-                  >
-                    {CATEGORIES.map((cat) => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.icon} {cat.name}
-                      </option>
-                    ))}
+                  > 
+                    {(categories || []).map((cat) => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))} 
                   </select>
                 </div>
 
@@ -2988,7 +3079,7 @@ ${itemsBrief}
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-[#00bf63]/40 text-right"
                   />
                   <datalist id="brands-list">
-                    {existingBrandNames.map((name) => (
+                    {[...new Set(products.map(p => p.brand))].map((name) => (
                       <option key={name} value={name} />
                     ))}
                   </datalist>
@@ -2996,60 +3087,92 @@ ${itemsBrief}
               </div>
 
               <div>
-                <label className="block text-xs font-extrabold text-gray-600 mb-1">صورة المنتج المصغرة</label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-center">
-                  <div className="space-y-2">
+                <label className="block text-xs font-extrabold text-gray-600 mb-1">معرض صور المنتج</label>
+                <div className="bg-gray-50/40 p-3.5 rounded-2xl border border-gray-100 space-y-3">
+                  <div className="flex items-start gap-2">
                     <input
                       type="url"
-                      value={formImage}
-                      onChange={(e) => setFormImage(e.target.value)}
+                      id="new-image-url"
                       placeholder="رابط الصورة بقاعدة البيانات (https://...)"
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl text-xs text-left font-mono focus:ring-2 focus:ring-[#00bf63]/40"
                     />
-                    <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 mt-2">
                       <span className="text-[10px] text-gray-400 font-bold whitespace-nowrap">أو ارفع من جهازك:</span>
                       <label className="flex-1 py-2 px-3 bg-green-50 hover:bg-green-100 text-[#00bf63] border border-[#00bf63]/30 rounded-xl text-center text-xs font-black cursor-pointer transition-colors block">
-                        <span>اختر صورة من جهازك 📁</span>
-                        <input
+                        <span>{isImageUploading ? 'جاري الرفع...' : 'اختر صورة من جهازك 📁'}</span>
+                        <input 
                           type="file"
                           accept="image/*"
                           className="hidden"
-                          onChange={(e) => {
+                          onChange={async (e) => {
                             const file = e.target.files?.[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onload = (event) => {
-                                if (event.target?.result) {
-                                  setFormImage(String(event.target.result));
-                                }
-                              };
-                              reader.readAsDataURL(file);
+                            if (!file) return;
+
+                            setIsImageUploading(true);
+                            setImageUploadError('');
+                            try {
+                              const url = await uploadToCloudinary(file);
+                              setFormImages(prev => [...prev, url]);
+                            } catch (error: any) {
+                              setImageUploadError(error?.message || 'فشل رفع الصورة');
+                            } finally {
+                              setIsImageUploading(false);
                             }
                           }}
                         />
                       </label>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const urlInput = document.getElementById('new-image-url') as HTMLInputElement;
+                        if (urlInput && urlInput.value.trim()) {
+                          setFormImages(prev => [...prev, urlInput.value.trim()]);
+                          urlInput.value = '';
+                        }
+                      }}
+                      className="px-3 py-2 bg-blue-500 text-white rounded-lg text-xs font-bold"
+                    >
+                      إضافة
+                    </button>
                   </div>
-                  <div className="border border-gray-150 rounded-2xl p-2 bg-gray-50 flex items-center justify-center h-28 relative overflow-hidden group">
-                    {formImage ? (
-                      <>
-                        <img 
-                          src={formImage} 
-                          alt="معاينة المنتج" 
-                          className="max-h-full max-w-full object-contain rounded-lg shadow-sm"
-                          referrerPolicy="no-referrer"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setFormImage('')}
-                          className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 text-[10px] shadow-sm transition-colors"
-                          title="حذف الصورة"
+                  <div className="space-y-2">
+                    {isImageUploading && (
+                      <p className="text-[10px] text-[#00bf63] font-black">جاري رفع الصورة إلى Cloudinary...</p>
+                    )}
+                    {imageUploadError && (
+                      <p className="text-[10px] text-red-500 font-bold">{imageUploadError}</p>
+                    )}
+                    {formImages.length > 0 ? (
+                      formImages.map((img, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center gap-2 bg-white p-2 rounded-lg border border-gray-200 cursor-move"
+                          draggable
+                          onDragStart={() => (dragItem.current = index)}
+                          onDragEnter={() => (dragOverItem.current = index)}
+                          onDragEnd={handleImageSort}
+                          onDragOver={(e) => e.preventDefault()}
                         >
-                          ✕
-                        </button>
-                      </>
+                          <FaGripLines className="text-gray-400 cursor-grab" />
+                          <img src={img} alt={`Product image ${index + 1}`} className="w-10 h-10 rounded-md object-cover" />
+                          <input
+                            type="text"
+                            value={img}
+                            readOnly
+                            className="flex-grow text-xs font-mono text-gray-500 bg-gray-50 px-2 py-1 rounded"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setFormImages(prev => prev.filter((_, i) => i !== index))}
+                            className="w-6 h-6 flex items-center justify-center bg-red-100 text-red-600 rounded-md hover:bg-red-200 text-xs"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))
                     ) : (
-                      <span className="text-[10px] text-gray-400 font-bold">لا يوجد صورة معينة للمنتج</span>
+                        <p className="text-center text-xs text-gray-400 font-bold py-4">لم يتم إضافة أي صور للمعرض بعد.</p>
                     )}
                   </div>
                 </div>
@@ -3098,6 +3221,76 @@ ${itemsBrief}
 
             </form>
 
+          </div>
+        </div>
+      )}
+
+      {/************** MODAL: ADD / EDIT CATEGORY *****************/}
+      {isCategoryModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 z-50">
+          <div className="bg-white rounded-3xl w-full max-w-md p-6 border border-gray-150 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-4">
+              <h4 className="text-lg font-black text-gray-800">
+                {editingCategory ? 'تعديل القسم' : 'إضافة قسم جديد'}
+              </h4>
+              <button
+                onClick={() => setIsCategoryModalOpen(false)}
+                className="p-1 text-gray-400 hover:text-gray-600 text-lg cursor-pointer"
+              >
+                <FaTimesCircle />
+              </button>
+            </div>
+
+            {categoryFormError && (
+              <div className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-xs font-black mb-4 text-center">
+                {categoryFormError}
+              </div>
+            )}
+
+            <form onSubmit={handleCategoryFormSubmit} className="space-y-4 text-right">
+              <div>
+                <label className="block text-xs font-extrabold text-gray-600 mb-1">اسم القسم</label>
+                <input
+                  type="text"
+                  required
+                  value={formCategoryName}
+                  onChange={(e) => setFormCategoryName(e.target.value)}
+                  placeholder="مثال: منظفات سائلة"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-[#00bf63]/40"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-extrabold text-gray-600 mb-1">صورة القسم</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setIsCategoryUploading(true);
+                    try {
+                      const url = await uploadToCloudinary(file);
+                      setFormCategoryImage(url);
+                    } catch (error) {
+                      setCategoryFormError('فشل رفع الصورة.');
+                    } finally {
+                      setIsCategoryUploading(false);
+                    }
+                  }}
+                  className="w-full text-xs file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100"
+                />
+                {formCategoryImage && <img src={formCategoryImage} alt="Preview" className="mt-2 w-20 h-20 rounded-lg object-cover border" />}
+              </div>
+              <div className="flex justify-end pt-4 border-t border-gray-100">
+                <button
+                  type="submit"
+                  disabled={isCategoryUploading}
+                  className="px-5 py-2.5 bg-[#00bf63] hover:bg-brand-green-dark text-white rounded-lg text-xs font-extrabold cursor-pointer disabled:opacity-50"
+                >
+                  {isCategoryUploading ? 'جاري الرفع...' : editingCategory ? 'حفظ التعديلات' : 'إضافة القسم'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

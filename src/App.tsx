@@ -9,8 +9,16 @@ import ProductDetailView from './views/ProductDetailView';
 import CartView from './views/CartView';
 import OrderSuccessView from './views/OrderSuccessView';
 import AdminView from './views/AdminView';
-import { Product, CartItem, OrderDetails } from './types';
-import { PRODUCTS, CATEGORIES } from './data';
+import { Product, CartItem, OrderDetails, Category } from './types';
+import { signInAdmin } from './authUtils';
+import {
+  getAllProducts as getFirestoreProducts,
+  createOrder as createFirestoreOrder,
+  updateProduct as updateFirestoreProduct,
+  getAllCategories as getFirestoreCategories,
+  getAllOrders as getFirestoreOrders,
+  getBannerData as getFirestoreBanner,
+} from './firestoreUtils';
 import { FaHeadset, FaPhoneAlt, FaMapMarkerAlt, FaEnvelope, FaFacebook, FaInstagram, FaTiktok, FaUnlockAlt, FaEye, FaEyeSlash } from 'react-icons/fa';
 
 const getRoleFromUrl = (): string | null => {
@@ -66,7 +74,7 @@ export default function App() {
       if (roleParam === 'gate') return 'user';
 
       const token = sessionStorage.getItem('elshorbagy_admin_token') || localStorage.getItem('elshorbagy_admin_token');
-      return token === 'validated_sess_token_secure' ? 'owner' : 'user';
+      return token === 'validated_sess_token_secure' || token === 'firebase-admin-auth' ? 'owner' : 'user';
     }
     return 'user';
   });
@@ -88,7 +96,7 @@ export default function App() {
       }
 
       const token = sessionStorage.getItem('elshorbagy_admin_token') || localStorage.getItem('elshorbagy_admin_token');
-      if (token === 'validated_sess_token_secure') return true;
+      if (token === 'validated_sess_token_secure' || token === 'firebase-admin-auth') return true;
       
       const savedChoice = sessionStorage.getItem('elshorbagy_gate_entered') || localStorage.getItem('elshorbagy_gate_entered');
       return savedChoice === 'true';
@@ -134,33 +142,22 @@ export default function App() {
     setIsSubmittingLogin(true);
 
     try {
-      const res = await fetch('/api/admin/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: loginUsername, password: loginPassword })
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        sessionStorage.setItem('elshorbagy_admin_token', data.token);
-        localStorage.setItem('elshorbagy_admin_token', data.token);
-        const displayName = data.user?.name || data.user?.username || 'المدير';
-        sessionStorage.setItem('elshorbagy_admin_user_name', displayName);
-        localStorage.setItem('elshorbagy_admin_user_name', displayName);
-        sessionStorage.setItem('elshorbagy_gate_entered', 'true');
-        localStorage.setItem('elshorbagy_gate_entered', 'true');
-        setUserRole('owner');
-        setHasEntered(true);
-        setShowOwnerLoginModal(false);
-        setLoginUsername('');
-        setLoginPassword('');
-        handleNavigate('admin');
-      } else {
-        const data = await res.json();
-        setLoginErrorMsg(data.error || 'اسم المستخدم أو كلمة المرور غير صحيحة');
-      }
-    } catch (err) {
-      setLoginErrorMsg('عذراً، حدث خطأ أثناء الاتصال بالخادم.');
+      const { userData } = await signInAdmin(loginUsername.trim(), loginPassword);
+      const displayName = userData.displayName || userData.email || 'المدير';
+      sessionStorage.setItem('elshorbagy_admin_token', 'firebase-admin-auth');
+      localStorage.setItem('elshorbagy_admin_token', 'firebase-admin-auth');
+      sessionStorage.setItem('elshorbagy_admin_user_name', displayName);
+      localStorage.setItem('elshorbagy_admin_user_name', displayName);
+      sessionStorage.setItem('elshorbagy_gate_entered', 'true');
+      localStorage.setItem('elshorbagy_gate_entered', 'true');
+      setUserRole('owner');
+      setHasEntered(true);
+      setShowOwnerLoginModal(false);
+      setLoginUsername('');
+      setLoginPassword('');
+      handleNavigate('admin');
+    } catch (err: any) {
+      setLoginErrorMsg(err?.message || 'البريد الإلكتروني أو كلمة المرور غير صحيحة');
     } finally {
       setIsSubmittingLogin(false);
     }
@@ -178,45 +175,75 @@ export default function App() {
     badge: '🧼 النظافة والبريق في جيبك • أسعار جملة الجملة',
     title: 'الشوربجي للمنظفات\nوالورقيات في مصر',
     subtitle: 'نوفر لكم أكبر تشكيلة من مساحيق الغسيل، مطهرات ديتول، صابون المواعين، والورقيات والمناديل المعقمة بأقصى توفير وأسرع خدمة شحن لباب بيتك!',
-    image: ''
+    image: '',
+    isClosed: false,
   });
   const [orders, setOrders] = useState<OrderDetails[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
 
   // Hydration utility
   const refreshLiveState = async () => {
     try {
-      const res = await fetch('/api/state');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.products && data.products.length > 0) {
-          setDynamicProducts(data.products);
-          
-          // Sync currently active product to pick up decrease in stock levels
-          if (activeProduct) {
-            const synced = data.products.find((p: Product) => p.id === activeProduct.id);
-            if (synced) setActiveProduct(synced);
-          }
-        } else {
-          setDynamicProducts(PRODUCTS.map(p => ({ ...p, stock: p.stock !== undefined ? p.stock : 100 })));
-        }
-        if (data.banner) {
-          setDynamicBanner(data.banner);
-        }
-      } else {
-        setDynamicProducts(PRODUCTS.map(p => ({ ...p, stock: p.stock !== undefined ? p.stock : 100 })));
+      const firestoreProducts = await getFirestoreProducts();
+      const normalizedProducts = firestoreProducts.map((product: any) => ({
+        ...product,
+        stock: product.stock !== undefined ? product.stock : 100,
+        images: product.images || [product.image],
+        specs: product.specs || {},
+      })) as Product[];
+
+      setDynamicProducts(normalizedProducts);
+
+      if (activeProduct) {
+        const synced = normalizedProducts.find((p: Product) => p.id === activeProduct.id);
+        if (synced) setActiveProduct(synced);
       }
     } catch (e) {
-      console.warn('Backend server not responding or initial container boot up, fallback to offline static values:', e);
-      setDynamicProducts(PRODUCTS.map(p => ({ ...p, stock: p.stock !== undefined ? p.stock : 100 })));
+      console.error('Failed to load products from Firestore:', e);
+      setDynamicProducts([]);
     }
 
     try {
-      const resOrders = await fetch('/api/orders');
-      if (resOrders.ok) {
-        const oData = await resOrders.json();
-        setOrders(oData);
+      const firestoreOrders = await getFirestoreOrders();
+      setOrders(
+        firestoreOrders.map((order: any) => ({
+          orderId: order.orderId || order.id,
+          items: Array.isArray(order.items) ? order.items : [],
+          customerInfo: order.customerInfo || { name: '', phone: '', governorate: '', city: '', address: '' },
+          subtotal: Number(order.subtotal) || 0,
+          shipping: Number(order.shipping) || 0,
+          total: Number(order.total) || 0,
+          date: order.date || order.createdAt || '',
+          status: order.status || 'pending',
+        })) as OrderDetails[]
+      );
+    } catch (e) {
+      console.error('Failed to load orders from Firestore:', e);
+      setOrders([]);
+    }
+
+    try {
+      const firestoreBanner = await getFirestoreBanner();
+      if (firestoreBanner) {
+        setDynamicBanner({
+          badge: firestoreBanner.badge || dynamicBanner.badge,
+          title: firestoreBanner.title || dynamicBanner.title,
+          subtitle: firestoreBanner.subtitle || dynamicBanner.subtitle,
+          image: firestoreBanner.image || dynamicBanner.image,
+          isClosed: !!firestoreBanner.isClosed,
+        });
       }
-    } catch (_) {}
+    } catch (e) {
+      console.error('Failed to load banner from Firestore:', e);
+    }
+
+    try {
+      const firestoreCategories = await getFirestoreCategories();
+      setCategories(firestoreCategories);
+    } catch (e) {
+      console.error('Failed to load categories from Firestore:', e);
+      setCategories([]);
+    }
   };
 
   useEffect(() => {
@@ -264,26 +291,6 @@ export default function App() {
   // Expand/collapse child categories inside sidebar
   const [isCategoriesExpanded, setIsCategoriesExpanded] = useState(false);
 
-  // Dynamic Categories Memo
-  const dynamicCategories = React.useMemo(() => {
-    const list = [...CATEGORIES];
-    dynamicProducts.forEach((p) => {
-      if (!p.category) return;
-      const exists = list.some(
-        (c) => c.id.toLowerCase() === p.category.toLowerCase() || c.name.toLowerCase() === p.category.toLowerCase()
-      );
-      if (!exists) {
-        list.push({
-          id: p.category,
-          name: p.category,
-          icon: '🏷️',
-          image: 'https://images.unsplash.com/photo-1628177142898-93e36e4e3a50?auto=format&fit=crop&q=80&w=400'
-        });
-      }
-    });
-    return list;
-  }, [dynamicProducts]);
-
   // Sync cart modifications to localStorage automatically
   useEffect(() => {
     try {
@@ -306,8 +313,7 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
     if (view === 'product-detail' && params.id) {
-      // Find and select active product
-      const foundProduct = (dynamicProducts.length > 0 ? dynamicProducts : PRODUCTS).find((p) => p.id === params.id);
+      const foundProduct = dynamicProducts.find((p) => p.id === params.id);
       if (foundProduct) {
         setActiveProduct(foundProduct);
       }
@@ -386,27 +392,45 @@ export default function App() {
   // Successfully complete payment via COD
   const handleCheckoutComplete = async (orderDetails: OrderDetails) => {
     try {
-      // Post order details to API to decrease stocks and save details
-      const response = await fetch('/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(orderDetails),
-      });
+      const normalizedOrder = {
+        orderId: orderDetails.orderId,
+        items: orderDetails.items.map((item) => ({
+          ...item,
+          product: item.product ? {
+            id: item.product.id,
+            title: item.product.title,
+            price: item.product.price,
+            discountPrice: item.product.discountPrice,
+            image: item.product.image,
+            brand: item.product.brand,
+            category: item.product.category,
+            stock: item.product.stock,
+          } : undefined,
+        })),
+        customerInfo: orderDetails.customerInfo,
+        subtotal: orderDetails.subtotal,
+        shipping: orderDetails.shipping,
+        total: orderDetails.total,
+        date: orderDetails.date,
+        status: 'pending' as const,
+      };
 
-      if (response.ok) {
-        const result = await response.json();
-        if (result.order) {
-          setLastOrderDetails(result.order);
-        } else {
-          setLastOrderDetails(orderDetails);
-        }
-        // Immediately fetch updated stocks so that catalog counters reduce
-        refreshLiveState();
-      } else {
-        setLastOrderDetails(orderDetails);
+      await createFirestoreOrder('guest', normalizedOrder as any);
+
+      for (const item of orderDetails.items) {
+        const productId = item.product?.id;
+        if (!productId) continue;
+        const currentProduct = dynamicProducts.find((p) => p.id === productId);
+        if (!currentProduct) continue;
+        const currentStock = currentProduct.stock !== undefined ? currentProduct.stock : 100;
+        const nextStock = Math.max(0, currentStock - item.quantity);
+        await updateFirestoreProduct(productId, { stock: nextStock } as any);
       }
+
+      setLastOrderDetails(orderDetails);
+      await refreshLiveState();
     } catch (e) {
-      console.error('Failed to post order to backend API, working in offline mode:', e);
+      console.error('Failed to save order to Firestore:', e);
       setLastOrderDetails(orderDetails);
     }
 
@@ -503,7 +527,7 @@ export default function App() {
                     <FaUnlockAlt />
                   </div>
                   <h3 className="text-lg font-black text-gray-800 mb-1">تسجيل دخول المالك 🔑</h3>
-                  <p className="text-[11px] text-gray-400 font-bold leading-normal">يرجى إدخال اسم المستخدم وكلمة المرور لتفعيل ميزات لوحة التحكم</p>
+                    <p className="text-[11px] text-gray-400 font-bold leading-normal">يرجى إدخال البريد الإلكتروني وكلمة المرور لحساب admin لتفعيل ميزات لوحة التحكم</p>
                 </div>
 
                 {loginErrorMsg && (
@@ -514,13 +538,13 @@ export default function App() {
 
                 <form onSubmit={handleOwnerLoginSubmit} className="space-y-4">
                   <div>
-                    <label className="block text-[11px] font-extrabold text-gray-600 mb-1 text-right">اسم المستخدم</label>
+                      <label className="block text-[11px] font-extrabold text-gray-600 mb-1 text-right">البريد الإلكتروني</label>
                     <input
                       type="text"
                       required
                       value={loginUsername}
                       onChange={(e) => setLoginUsername(e.target.value)}
-                      placeholder="مثال: admin"
+                        placeholder="مثال: admin@elshorbagy.com"
                       className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-[#00bf63]/40 focus:border-[#00bf63] text-left font-bold"
                     />
                   </div>
@@ -545,7 +569,7 @@ export default function App() {
                       </button>
                     </div>
                     <p className="text-[10px] text-amber-600 font-extrabold mt-1.5 text-right bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200">
-                      💡 الحساب الافتراضي للدخول: اسم المستخدم <span className="font-mono text-gray-700 bg-white px-1 py-0.5 rounded border border-gray-200">admin</span> وكلمة المرور <span className="font-mono text-gray-700 bg-white px-1 py-0.5 rounded border border-gray-200">123</span>
+                        💡 استخدم حساب admin في Firebase: البريد الإلكتروني <span className="font-mono text-gray-700 bg-white px-1 py-0.5 rounded border border-gray-200">admin@elshorbagy.com</span> وكلمة المرور <span className="font-mono text-gray-700 bg-white px-1 py-0.5 rounded border border-gray-200">Admin@123</span>
                     </p>
                   </div>
 
@@ -623,6 +647,7 @@ export default function App() {
           <HomeView
             products={dynamicProducts}
             banner={dynamicBanner}
+            categories={categories}
             onSelectProduct={selectProductDetail}
             onAddToCart={handleQuickAddToCart}
             onNavigate={handleNavigate}
@@ -632,6 +657,7 @@ export default function App() {
         {currentView === 'products' && (
           <ProductsView
             products={dynamicProducts}
+            categories={categories}
             initialFilters={productsFilters}
             onSelectProduct={selectProductDetail}
             onAddToCart={handleQuickAddToCart}
@@ -643,6 +669,7 @@ export default function App() {
             product={activeProduct}
             onAddToCart={handleAddToCart}
             onNavigate={handleNavigate}
+            onRefreshData={refreshLiveState}
           />
         )}
 
@@ -661,6 +688,7 @@ export default function App() {
           <AdminView
             products={dynamicProducts}
             banner={dynamicBanner}
+            categories={categories}
             orders={orders}
             onRefreshData={refreshLiveState}
             onNavigate={handleNavigate}
@@ -834,11 +862,11 @@ export default function App() {
                       ? 'bg-brand-purple text-white shadow-xs' 
                       : 'text-gray-700 hover:bg-brand-purple-light hover:text-brand-purple'
                   }`}
-                >
+              > 
                   <div className="flex items-center gap-2">
                     <span>تصفح الأقسام 🏷️</span>
                     <span className="text-[9px] font-black bg-brand-green text-white px-2 py-0.5 rounded-full">
-                      {dynamicCategories.length} أقسام
+                      {categories.length} أقسام
                     </span>
                   </div>
                   <span className={`text-[10px] filter drop-shadow-sm font-black transition-transform duration-300 ${isCategoriesExpanded ? 'rotate-90' : ''}`}>
@@ -857,7 +885,7 @@ export default function App() {
                     >
                       ✨ تصفح كل المنتجات (الكل)
                     </button>
-                    {dynamicCategories.map((cat) => (
+                    {categories.map((cat) => (
                       <button
                         key={cat.id}
                         onClick={() => {
@@ -867,7 +895,14 @@ export default function App() {
                         className="w-full text-right py-1.5 px-3 hover:bg-brand-purple-light hover:text-brand-purple text-gray-700 rounded-lg text-xs font-semibold select-none flex items-center justify-between transition-colors"
                       >
                         <span className="truncate">{cat.name}</span>
-                        <span className="text-sm shrink-0">{cat.icon}</span>
+                        <img
+                          src={cat.image || 'https://res.cloudinary.com/dglhc1pfj/image/upload/v1718817951/tag-placeholder_u5gy9y.png'}
+                          alt={cat.name}
+                          className="w-5 h-5 object-contain rounded"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = 'https://res.cloudinary.com/dglhc1pfj/image/upload/v1718817951/tag-placeholder_u5gy9y.png';
+                          }}
+                        />
                       </button>
                     ))}
                   </div>
@@ -1058,7 +1093,7 @@ export default function App() {
             
             <h3 className="text-xl font-black text-gray-800 text-center mb-1">تسجيل دخول المالك</h3>
             <p className="text-[11px] text-gray-400 font-bold text-center mb-5 leading-relaxed">
-              يرجى إدخال اسم المستخدم وكلمة المرور لتفعيل ميزات لوحة التحكم وإدارة المتجر.
+              يرجى إدخال البريد الإلكتروني وكلمة المرور لحساب admin في Firebase لتفعيل لوحة التحكم.
             </p>
 
             {loginErrorMsg && (
@@ -1069,13 +1104,13 @@ export default function App() {
 
             <form onSubmit={handleOwnerLoginSubmit} className="space-y-4">
               <div>
-                <label className="block text-[11px] font-extrabold text-gray-600 mb-1">اسم المستخدم</label>
+                <label className="block text-[11px] font-extrabold text-gray-600 mb-1">البريد الإلكتروني</label>
                 <input
-                  type="text"
+                  type="email"
                   required
                   value={loginUsername}
                   onChange={(e) => setLoginUsername(e.target.value)}
-                  placeholder="مثال: admin"
+                  placeholder="مثال: admin@elshorbagy.com"
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-[#00bf63]/40 focus:border-[#00bf63] text-left font-bold"
                 />
               </div>

@@ -59,8 +59,18 @@ export interface Brand {
 export interface Category {
   id: string;
   name: string;
-  icon: string;
-  image: string;
+  icon?: string;
+  image?: string;
+}
+
+export interface UserData {
+  uid: string;
+  email: string;
+  username?: string;
+  displayName: string;
+  isAdmin: boolean;
+  isModerator?: boolean;
+  createdAt: string;
 }
 
 export interface CartItem {
@@ -71,6 +81,7 @@ export interface CartItem {
 }
 
 export interface OrderDetails {
+  id?: string;
   orderId: string;
   items: CartItem[];
   customerInfo: {
@@ -84,5 +95,5 @@ export interface OrderDetails {
   shipping: number;
   total: number;
   date: string;
-  status?: 'pending' | 'delivered' | 'cancelled';
+  status?: "pending" | "confirmed" | "shipped" | "delivered" | "cancelled";
 }

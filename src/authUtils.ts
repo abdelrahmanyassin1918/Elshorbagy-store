@@ -287,6 +287,59 @@ export async function createAdminAccount(
 }
 
 /**
+ * Create a new admin/moderator user from the admin panel.
+ * This is a client-side workaround. It will temporarily sign in as the new user
+ * to create their profile, then sign back in as the original admin.
+ */
+export async function createAdminUser(
+  email: string,
+  password: string,
+  displayName: string,
+): Promise<UserData> {
+  const currentAdmin = auth.currentUser;
+  if (!currentAdmin) {
+    throw new Error("No admin is currently signed in.");
+  }
+
+  try {
+    // 1. Create the new user in Firebase Auth. This will sign them in.
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const newUser = userCredential.user;
+
+    // 2. Update the new user's profile with their display name.
+    await updateProfile(newUser, { displayName });
+
+    // 3. Create the user document in Firestore with moderator privileges.
+    const newUserDa_ta: UserData = {
+      uid: newUser.uid,
+      email: newUser.email || "",
+      displayName,
+      isAdmin: false, // New users are moderators by default, not full admins
+      isModerator: true,
+      createdAt: new Date().toISOString(),
+    };
+    await setDoc(doc(db, "users", newUser.uid), newUserDa_ta);
+
+    // 4. IMPORTANT: Sign the original admin back in.
+    await auth.updateCurrentUser(currentAdmin);
+
+    return newUserDa_ta;
+  } catch (error: any) {
+    if (
+      error?.code === "auth/email-already-in-use" ||
+      error?.message === "EMAIL_EXISTS" ||
+      error?.message?.includes("EMAIL_EXISTS")
+    ) {
+      throw new Error(
+        "هذا البريد الإلكتروني مستخدم بالفعل في Firebase. استخدم بريداً مختلفاً أو عدّل الحساب الموجود."
+      );
+    }
+
+    throw new Error(`Failed to create user: ${error.message}`);
+  }
+}
+
+/**
  * Set user as admin (use with caution!)
  * Only call from secure admin panel
  */

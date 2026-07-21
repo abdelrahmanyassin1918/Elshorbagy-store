@@ -207,6 +207,7 @@ export default function App() {
       const firestoreOrders = await getFirestoreOrders();
       setOrders(
         firestoreOrders.map((order: any) => ({
+          id: order.id,
           orderId: order.orderId || order.id,
           items: Array.isArray(order.items) ? order.items : [],
           customerInfo: order.customerInfo || { name: '', phone: '', governorate: '', city: '', address: '' },
@@ -415,7 +416,7 @@ export default function App() {
         status: 'pending' as const,
       };
 
-      await createFirestoreOrder('guest', normalizedOrder as any);
+      const savedOrderId = await createFirestoreOrder(normalizedOrder as any, 'guest');
 
       for (const item of orderDetails.items) {
         const productId = item.product?.id;
@@ -427,11 +428,12 @@ export default function App() {
         await updateFirestoreProduct(productId, { stock: nextStock } as any);
       }
 
-      setLastOrderDetails(orderDetails);
+      setLastOrderDetails({ ...orderDetails, id: savedOrderId, orderId: savedOrderId });
       await refreshLiveState();
     } catch (e) {
       console.error('Failed to save order to Firestore:', e);
-      setLastOrderDetails(orderDetails);
+      window.alert('تعذر تسجيل الطلب في قاعدة البيانات. يرجى المحاولة مرة أخرى.');
+      return;
     }
 
     setCart([]); // Clear shopping cart

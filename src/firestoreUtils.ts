@@ -506,17 +506,19 @@ export async function deleteProduct(productId: string): Promise<void> {
  * Create new order
  */
 export async function createOrder(
-  userId: string,
   order: Omit<Order, "id" | "userId" | "createdAt">,
+  userId?: string, // Make userId optional for guest checkouts
 ): Promise<string> {
   try {
-    const docRef = await addDoc(collection(db, "orders"), {
-      userId,
+    const orderRef = doc(collection(db, "orders"));
+    await setDoc(orderRef, {
       ...order,
+      orderId: orderRef.id,
+      ...(userId && { userId }), // Conditionally add userId if it exists
       status: "pending",
       createdAt: new Date().toISOString(),
     });
-    return docRef.id;
+    return orderRef.id;
   } catch (error) {
     console.error("Error creating order:", error);
     throw error;
@@ -614,6 +616,18 @@ export async function cancelOrder(orderId: string): Promise<void> {
     });
   } catch (error) {
     console.error("Error cancelling order:", error);
+    throw error;
+  }
+}
+
+/**
+ * Delete an order (admin only)
+ */
+export async function deleteOrder(orderId: string): Promise<void> {
+  try {
+    await deleteDoc(doc(db, "orders", orderId));
+  } catch (error) {
+    console.error("Error deleting order:", error);
     throw error;
   }
 }

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Product, OrderDetails, PurchaseRecord, Category, UserData } from '../types';
 import { CATEGORIES } from '../data';
-import { signInAdmin, signOut_ } from '../authUtils';
+import { createAdminUser, signInAdmin, signOut_ } from '../authUtils';
 import {
   getAllOrders as getFirestoreOrders,
   addProduct as addFirestoreProduct,
@@ -11,13 +11,14 @@ import {
   updateCategory as updateFirestoreCategory,
   deleteCategory as deleteFirestoreCategory,
   updateOrderStatus as updateFirestoreOrderStatus,
+  deleteOrder as deleteFirestoreOrder,
   saveBannerData as saveFirestoreBanner,
   getAllUsers as getFirestoreUsers,
   updateUser as updateFirestoreUser,
   deleteUser as deleteFirestoreUser,
 } from '../firestoreUtils';
-import { 
-  FaLock, FaCheckCircle, FaTrash, FaEdit, FaPlus, FaSlidersH, 
+import {
+  FaLock, FaCheckCircle, FaTrash, FaEdit, FaPlus, FaSlidersH,
   FaBoxOpen, FaClipboardList, FaSignOutAlt, FaTimesCircle,
   FaCubes, FaMoneyBillWave, FaChartLine, FaDollyFlatbed, FaSearch, FaGripLines,
   FaPrint, FaWhatsapp, FaEye, FaEyeSlash, FaPhone, FaBarcode,
@@ -61,7 +62,7 @@ const getGateUrl = (baseUrl: string) => {
 };
 
 const uploadToCloudinary = async (file: File): Promise<string> => {
-  const env = (import.meta as ImportMeta & { env?: Record<string, string> }).env ?? {};
+  const env = ((import.meta as ImportMeta & { env?: Record<string, string> }).env ?? {}) as Record<string, string>;
   const cloudName = env.VITE_CLOUDINARY_CLOUD_NAME;
   const uploadPreset = env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
@@ -586,6 +587,7 @@ ${itemsBrief}
       const firestoreOrders = await getFirestoreOrders();
       const mappedOrders = firestoreOrders.map((order: any) => ({
         ...order,
+        id: order.id,
         orderId: order.orderId || order.id,
         items: Array.isArray(order.items) ? order.items : [],
         customerInfo: order.customerInfo || { name: '', phone: '', governorate: '', city: '', address: '' },
@@ -617,6 +619,7 @@ ${itemsBrief}
         const firestoreOrders = await getFirestoreOrders();
         const fetchedOrders: OrderDetails[] = firestoreOrders.map((order: any) => ({
           ...order,
+          id: order.id,
           orderId: order.orderId || order.id,
           items: Array.isArray(order.items) ? order.items : [],
           customerInfo: order.customerInfo || { name: '', phone: '', governorate: '', city: '', address: '' },
@@ -805,6 +808,34 @@ ${itemsBrief}
     return specs;
   };
 
+  const handleBarcodeChange = (barcode: string) => {
+    setFormBarcode(barcode);
+    // Find product by barcode and pre-fill form
+    const productWithBarcode = products.find(p => p.barcode === barcode && barcode.trim() !== '');
+    if (productWithBarcode) {
+      // Pre-fill the form, similar to openEditModal but without setting editingProduct
+      setFormTitle(productWithBarcode.title);
+      setFormDescription(productWithBarcode.description);
+      setFormPrice(String(productWithBarcode.price));
+      setFormDiscountPrice(productWithBarcode.discountPrice ? String(productWithBarcode.discountPrice) : '');
+      setFormPurchasePrice(productWithBarcode.purchasePrice ? String(productWithBarcode.purchasePrice) : '');
+      setFormStock(String(productWithBarcode.stock !== undefined ? productWithBarcode.stock : 100));
+      setFormDate(productWithBarcode.addedDate || new Date().toISOString().split('T')[0]);
+      setFormCategory(productWithBarcode.category);
+      setFormBrand(productWithBarcode.brand);
+      setFormCompany(productWithBarcode.company || '');
+      setFormImages(productWithBarcode.images || [productWithBarcode.image]);
+      setImageUploadError('');
+
+      if (productWithBarcode.specs) {
+        const specLines = Object.entries(productWithBarcode.specs).map(([key, val]) => `${key}: ${val}`);
+        setFormSpecs(specLines.join('\n'));
+      } else {
+        setFormSpecs('');
+      }
+      showToast('info', `تم العثور على منتج بنفس الباركود وتم ملء الحقول.`);
+    }
+  };
   const handleProductFormSubmit = async (e: React.FormEvent, forceAsNew = false) => {
     if (e) e.preventDefault();
     setFormError('');
@@ -846,7 +877,7 @@ ${itemsBrief}
       price: priceNum,
       discountPrice: discNum,
       purchasePrice: purchasePriceNum,
-      barcode: formBarcode.trim() || undefined,
+      ...(formBarcode.trim() && { barcode: formBarcode.trim() }),
       stock: Number(formStock),
       addedDate: formDate || new Date().toISOString().split('T')[0],
       category: formCategory.trim(),
@@ -1748,8 +1779,27 @@ ${itemsBrief}
                           >
                             <span>إلغاء الطلب ❌</span>
                           </button>
+
                         </>
                       )}
+
+                      <button
+                        onClick={async () => {
+                          const orderDocumentId = order.id || order.orderId;
+                          if (!confirm('هل أنت متأكد من حذف هذا الطلب نهائياً؟ لا يمكن التراجع عن هذا الإجراء.')) return;
+                          try {
+                            await deleteFirestoreOrder(orderDocumentId);
+                            fetchOrders(true);
+                            onRefreshData();
+                          } catch (err) {
+                            alert('فشل حذف الطلب من Firestore.');
+                          }
+                        }}
+                        className="px-3.5 py-2.5 bg-gray-50 hover:bg-red-100 text-red-600 rounded-xl text-[11px] font-black border border-red-200 shadow-2xs flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
+                      >
+                        <FaTrash />
+                        <span>حذف نهائي 🗑️</span>
+                      </button>
 
                       <button
                         onClick={() => {
@@ -2623,20 +2673,22 @@ ${itemsBrief}
                   }
 
                   try {
-                    // This function is in authUtils.ts and should handle both Auth and Firestore user creation
-                    // For now, we assume it exists. If not, it needs to be created.
-                    // For this example, we'll just show a success message and refresh.
-                    // The actual creation would happen in a function like `createNewAdminUser(email, password, name)`
-                    showUserMessage('info', 'ميزة إضافة المستخدمين الجدد تتطلب صلاحيات خاصة. حالياً، قم بإضافتهم من لوحة تحكم Firebase.');
-                    // Example of what it would look like:
-                    // await createNewAdminUser(newAdminUsername.trim(), newAdminPassword.trim(), newAdminName.trim());
-                    // showUserMessage('success', 'تمت إضافة المشرف الجديد بنجاح!');
-                    // fetchAdminUsers();
+                    // Note: Creating a user client-side will sign out the current admin.
+                    // This is a limitation without a backend Admin SDK.
+                    // The original admin will need to log back in.
+                    await createAdminUser(newAdminUsername.trim(), newAdminPassword.trim(), newAdminName.trim());
+                    showUserMessage('success', 'تمت إضافة المشرف الجديد بنجاح! سيتم تسجيل خروجك الآن، يرجى إعادة تسجيل الدخول.');
+
+                    // Clear form and refresh list
                     setNewAdminUsername('');
                     setNewAdminPassword('');
                     setNewAdminName('');
-                  } catch (err) {
-                    showUserMessage('error', 'فشل في إضافة المشرف الجديد.');
+                    fetchAdminUsers();
+
+                    // Log out current admin as the new user is now signed in
+                    setTimeout(handleLogout, 3000);
+                  } catch (err: any) {
+                    showUserMessage('error', err.message || 'فشل في إضافة المشرف الجديد.');
                   }
                 }}
                 className="grid grid-cols-1 md:grid-cols-3 gap-4"

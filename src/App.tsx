@@ -20,7 +20,7 @@ import {
   getBannerData as getFirestoreBanner,
 } from './firestoreUtils';
 import { FaHeadset, FaPhoneAlt, FaMapMarkerAlt, FaEnvelope, FaFacebook, FaInstagram, FaTiktok, FaUnlockAlt, FaEye, FaEyeSlash } from 'react-icons/fa';
-
+console.log(import.meta.env.VITE_FIREBASE_API_KEY)
 const getRoleFromUrl = (): string | null => {
   if (typeof window === 'undefined') return null;
   const href = window.location.href;

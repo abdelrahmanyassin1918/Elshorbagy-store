@@ -871,22 +871,22 @@ ${itemsBrief}
 
     const parsedSpecs = parseSpecsText(formSpecs);
     const imageUrl = formImages.length > 0 ? formImages[0] : 'https://images.unsplash.com/photo-1628177142898-93e36e4e3a50?auto=format&fit=crop&q=80&w=800';
-    const bodyPayload = {
-      title: formTitle.trim(),
-      description: formDescription.trim(),
-      price: priceNum,
-      discountPrice: discNum,
-      purchasePrice: purchasePriceNum,
-      ...(formBarcode.trim() && { barcode: formBarcode.trim() }),
-      stock: Number(formStock),
-      addedDate: formDate || new Date().toISOString().split('T')[0],
-      category: formCategory.trim(),
-      brand: formBrand.trim(),
-      company: formCompany.trim(),
-      image: formImages[0] || imageUrl,
-      images: formImages.length > 0 ? formImages : [imageUrl],
-      specs: parsedSpecs,
-    };
+   const bodyPayload = {
+     title: formTitle.trim(),
+     description: formDescription.trim(),
+     price: priceNum,
+     discountPrice: discNum ?? null, // إذا لم يُدخل خصم، ستكون القيمة null بدلاً من undefined
+     purchasePrice: purchasePriceNum ?? null, // إذا لم يُدخل سعر الشراء، ستكون null
+     barcode: formBarcode.trim() || null, // إذا كان الباركود فارغاً، سيكون null
+     stock: Number(formStock),
+     addedDate: formDate || new Date().toISOString().split("T")[0],
+     category: formCategory.trim(),
+     brand: formBrand.trim(),
+     company: formCompany.trim(),
+     image: formImages[0] || imageUrl,
+     images: formImages.length > 0 ? formImages : [imageUrl],
+     specs: parsedSpecs,
+   };
 
     try {
       const isNew = forceAsNew || !editingProduct;

@@ -10,6 +10,7 @@ import CartView from './views/CartView';
 import OrderSuccessView from './views/OrderSuccessView';
 import AdminView from './views/AdminView';
 import { Product, CartItem, OrderDetails, Category } from './types';
+import { PRODUCTS, CATEGORIES } from './data';
 import { signInAdmin } from './authUtils';
 import {
   getAllProducts as getFirestoreProducts,
@@ -170,8 +171,8 @@ export default function App() {
     isSpecialOffer?: boolean;
   }>({});
 
-  // Dynamic state loaded from Express Backend
-  const [dynamicProducts, setDynamicProducts] = useState<Product[]>([]);
+  // Dynamic state loaded from Express Backend / Firestore / Default Data
+  const [dynamicProducts, setDynamicProducts] = useState<Product[]>(PRODUCTS);
   const [dynamicBanner, setDynamicBanner] = useState({
     badge: '🧼 النظافة والبريق في جيبك • أسعار جملة الجملة',
     title: 'الشوربجي للمنظفات\nوالورقيات في مصر',
@@ -180,71 +181,74 @@ export default function App() {
     isClosed: false,
   });
   const [orders, setOrders] = useState<OrderDetails[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [categories, setCategories] = useState<Category[]>(CATEGORIES);
 
   // Hydration utility
   const refreshLiveState = async () => {
     try {
       const firestoreProducts = await getFirestoreProducts();
-      const normalizedProducts = firestoreProducts.map((product: any) => ({
-        ...product,
-        stock: product.stock !== undefined ? product.stock : 100,
-        images: product.images || [product.image],
-        specs: product.specs || {},
-      })) as Product[];
+      if (firestoreProducts && firestoreProducts.length > 0) {
+        const normalizedProducts = firestoreProducts.map((product: any) => ({
+          ...product,
+          stock: product.stock !== undefined ? product.stock : 100,
+          images: product.images || [product.image],
+          specs: product.specs || {},
+        })) as Product[];
 
-      setDynamicProducts(normalizedProducts);
+        setDynamicProducts(normalizedProducts);
 
-      if (activeProduct) {
-        const synced = normalizedProducts.find((p: Product) => p.id === activeProduct.id);
-        if (synced) setActiveProduct(synced);
+        if (activeProduct) {
+          const synced = normalizedProducts.find((p: Product) => p.id === activeProduct.id);
+          if (synced) setActiveProduct(synced);
+        }
       }
     } catch (e) {
-      console.error('Failed to load products from Firestore:', e);
-      setDynamicProducts([]);
+      console.warn('Using fallback local products:', e);
     }
 
     try {
       const firestoreOrders = await getFirestoreOrders();
-      setOrders(
-        firestoreOrders.map((order: any) => ({
-          id: order.id,
-          orderId: order.orderId || order.id,
-          items: Array.isArray(order.items) ? order.items : [],
-          customerInfo: order.customerInfo || { name: '', phone: '', governorate: '', city: '', address: '' },
-          subtotal: Number(order.subtotal) || 0,
-          shipping: Number(order.shipping) || 0,
-          total: Number(order.total) || 0,
-          date: order.date || order.createdAt || '',
-          status: order.status || 'pending',
-        })) as OrderDetails[]
-      );
+      if (firestoreOrders && firestoreOrders.length > 0) {
+        setOrders(
+          firestoreOrders.map((order: any) => ({
+            id: order.id,
+            orderId: order.orderId || order.id,
+            items: Array.isArray(order.items) ? order.items : [],
+            customerInfo: order.customerInfo || { name: '', phone: '', governorate: '', city: '', address: '' },
+            subtotal: Number(order.subtotal) || 0,
+            shipping: Number(order.shipping) || 0,
+            total: Number(order.total) || 0,
+            date: order.date || order.createdAt || '',
+            status: order.status || 'pending',
+          })) as OrderDetails[]
+        );
+      }
     } catch (e) {
-      console.error('Failed to load orders from Firestore:', e);
-      setOrders([]);
+      console.warn('Using fallback local orders:', e);
     }
 
     try {
       const firestoreBanner = await getFirestoreBanner();
       if (firestoreBanner) {
-        setDynamicBanner({
-          badge: firestoreBanner.badge || dynamicBanner.badge,
-          title: firestoreBanner.title || dynamicBanner.title,
-          subtitle: firestoreBanner.subtitle || dynamicBanner.subtitle,
-          image: firestoreBanner.image || dynamicBanner.image,
+        setDynamicBanner((prev) => ({
+          badge: firestoreBanner.badge || prev.badge,
+          title: firestoreBanner.title || prev.title,
+          subtitle: firestoreBanner.subtitle || prev.subtitle,
+          image: firestoreBanner.image || prev.image,
           isClosed: !!firestoreBanner.isClosed,
-        });
+        }));
       }
     } catch (e) {
-      console.error('Failed to load banner from Firestore:', e);
+      console.warn('Using default banner settings:', e);
     }
 
     try {
       const firestoreCategories = await getFirestoreCategories();
-      setCategories(firestoreCategories);
+      if (firestoreCategories && firestoreCategories.length > 0) {
+        setCategories(firestoreCategories);
+      }
     } catch (e) {
-      console.error('Failed to load categories from Firestore:', e);
-      setCategories([]);
+      console.warn('Using fallback local categories:', e);
     }
   };
 
@@ -1095,8 +1099,8 @@ export default function App() {
             </div>
             
             <h3 className="text-xl font-black text-gray-800 text-center mb-1">تسجيل دخول المالك</h3>
-            <p className="text-[11px] text-gray-400 font-bold text-center mb-5 leading-relaxed">
-              يرجى إدخال البريد الإلكتروني وكلمة المرور لحساب admin في Firebase لتفعيل لوحة التحكم.
+            <p className="text-[11px] text-gray-500 font-bold text-center mb-5 leading-relaxed">
+              قم بإدخال البريد الإلكتروني أو اسم المستخدم وكلمة المرور لدخول لوحة التحكم.
             </p>
 
             {loginErrorMsg && (
@@ -1107,13 +1111,13 @@ export default function App() {
 
             <form onSubmit={handleOwnerLoginSubmit} className="space-y-4">
               <div>
-                <label className="block text-[11px] font-extrabold text-gray-600 mb-1">البريد الإلكتروني</label>
+                <label className="block text-[11px] font-extrabold text-gray-600 mb-1">البريد الإلكتروني أو اسم المستخدم</label>
                 <input
-                  type="email"
+                  type="text"
                   required
                   value={loginUsername}
                   onChange={(e) => setLoginUsername(e.target.value)}
-                  placeholder="مثال: admin@elshorbagy.com"
+                  placeholder="مثال: admin@elshorbagy.com أو admin"
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-[#00bf63]/40 focus:border-[#00bf63] text-left font-bold"
                 />
               </div>
@@ -1137,7 +1141,10 @@ export default function App() {
                     {showPassword ? <FaEyeSlash className="w-4 h-4 text-gray-500" /> : <FaEye className="w-4 h-4 text-gray-500" />}
                   </button>
                 </div>
-                <p className="text-[10px] text-gray-400 font-semibold mt-1">الرمز الافتراضي: 123</p>
+                <p className="text-[11px] text-emerald-600 font-bold mt-1.5 bg-emerald-50 p-2 rounded-lg text-center border border-emerald-100">
+                  🔑 البريد: <span className="font-mono underline">admin@elshorbagy.com</span> أو <span className="font-mono underline">admin</span><br/>
+                  🔑 الباسورد: <span className="font-mono font-black text-sm">123</span> أو <span className="font-mono font-black text-sm">123456</span>
+                </p>
               </div>
 
               <div className="flex gap-2 pt-2">

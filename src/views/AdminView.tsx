@@ -1,7 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { Product, OrderDetails, PurchaseRecord, Category, UserData } from '../types';
-import { CATEGORIES } from '../data';
-import { createAdminUser, signInAdmin, signOut_ } from '../authUtils';
+import React, { useState, useEffect } from "react";
+import {
+  Product,
+  OrderDetails,
+  PurchaseRecord,
+  Category,
+  UserData,
+} from "../types";
+import { createAdminUser, signInAdmin, signOut_ } from "../authUtils";
 import {
   getAllOrders as getFirestoreOrders,
   addProduct as addFirestoreProduct,
@@ -16,14 +21,32 @@ import {
   getAllUsers as getFirestoreUsers,
   updateUser as updateFirestoreUser,
   deleteUser as deleteFirestoreUser,
-} from '../firestoreUtils';
+} from "../firestoreUtils";
 import {
-  FaLock, FaCheckCircle, FaTrash, FaEdit, FaPlus, FaSlidersH,
-  FaBoxOpen, FaClipboardList, FaSignOutAlt, FaTimesCircle,
-  FaCubes, FaMoneyBillWave, FaChartLine, FaDollyFlatbed, FaSearch, FaGripLines,
-  FaPrint, FaWhatsapp, FaEye, FaEyeSlash, FaPhone, FaBarcode,
-  FaTags
-} from 'react-icons/fa';
+  FaLock,
+  FaCheckCircle,
+  FaTrash,
+  FaEdit,
+  FaPlus,
+  FaSlidersH,
+  FaBoxOpen,
+  FaClipboardList,
+  FaSignOutAlt,
+  FaTimesCircle,
+  FaCubes,
+  FaMoneyBillWave,
+  FaChartLine,
+  FaDollyFlatbed,
+  FaSearch,
+  FaGripLines,
+  FaPrint,
+  FaWhatsapp,
+  FaEye,
+  FaEyeSlash,
+  FaPhone,
+  FaBarcode,
+  FaTags,
+} from "react-icons/fa";
 
 interface AdminViewProps {
   products: Product[];
@@ -40,48 +63,54 @@ interface AdminViewProps {
 }
 
 const getDirectUserUrl = (baseUrl: string) => {
-  if (!baseUrl) return '';
+  if (!baseUrl) return "";
   try {
     const url = new URL(baseUrl);
-    url.searchParams.set('role', 'user');
+    url.searchParams.set("role", "user");
     return url.toString();
   } catch (e) {
-    return baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'role=user';
+    return baseUrl + (baseUrl.includes("?") ? "&" : "?") + "role=user";
   }
 };
 
 const getGateUrl = (baseUrl: string) => {
-  if (!baseUrl) return '';
+  if (!baseUrl) return "";
   try {
     const url = new URL(baseUrl);
-    url.searchParams.set('role', 'gate');
+    url.searchParams.set("role", "gate");
     return url.toString();
   } catch (e) {
-    return baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'role=gate';
+    return baseUrl + (baseUrl.includes("?") ? "&" : "?") + "role=gate";
   }
 };
 
 const uploadToCloudinary = async (file: File): Promise<string> => {
-  const env = ((import.meta as ImportMeta & { env?: Record<string, string> }).env ?? {}) as Record<string, string>;
+  const env = ((import.meta as ImportMeta & { env?: Record<string, string> })
+    .env ?? {}) as Record<string, string>;
   const cloudName = env.VITE_CLOUDINARY_CLOUD_NAME;
   const uploadPreset = env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
   if (!cloudName || !uploadPreset) {
-    throw new Error('يرجى تهيئة Cloudinary عبر VITE_CLOUDINARY_CLOUD_NAME و VITE_CLOUDINARY_UPLOAD_PRESET');
+    throw new Error(
+      "يرجى تهيئة Cloudinary عبر VITE_CLOUDINARY_CLOUD_NAME و VITE_CLOUDINARY_UPLOAD_PRESET",
+    );
   }
 
   const formData = new FormData();
-  formData.append('file', file);
-  formData.append('upload_preset', uploadPreset);
+  formData.append("file", file);
+  formData.append("upload_preset", uploadPreset);
 
-  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-    method: 'POST',
-    body: formData,
-  });
+  const response = await fetch(
+    `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+    {
+      method: "POST",
+      body: formData,
+    },
+  );
 
   const data = await response.json();
   if (!response.ok || !data.secure_url) {
-    throw new Error(data.error?.message || 'فشل رفع الصورة إلى Cloudinary');
+    throw new Error(data.error?.message || "فشل رفع الصورة إلى Cloudinary");
   }
 
   return data.secure_url as string;
@@ -97,40 +126,60 @@ export default function AdminView({
 }: AdminViewProps) {
   // Login credentials state
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    const token = sessionStorage.getItem('elshorbagy_admin_token') || localStorage.getItem('elshorbagy_admin_token');
-    return token === 'validated_sess_token_secure' || token === 'firebase-admin-auth';
+    const token =
+      sessionStorage.getItem("elshorbagy_admin_token") ||
+      localStorage.getItem("elshorbagy_admin_token");
+    return (
+      token === "validated_sess_token_secure" || token === "firebase-admin-auth"
+    );
   });
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [loginError, setLoginError] = useState('');
+  const [loginError, setLoginError] = useState("");
   const [isLoginSubmitting, setIsLoginSubmitting] = useState(false);
 
   // Tab State: 'products' | 'orders' | 'banner' | 'inventory' | 'users' | 'qrcode' | 'categories'
-  const [activeTab, setActiveTab] = useState<'products' | 'orders' | 'banner' | 'inventory' | 'users' | 'qrcode' | 'categories'>('products');
+  const [activeTab, setActiveTab] = useState<
+    | "products"
+    | "orders"
+    | "banner"
+    | "inventory"
+    | "users"
+    | "qrcode"
+    | "categories"
+  >("products");
 
   // Multi-user state
   const [adminDisplayName, setAdminDisplayName] = useState<string>(() => {
-    return sessionStorage.getItem('elshorbagy_admin_user_name') || localStorage.getItem('elshorbagy_admin_user_name') || 'المدير';
+    return (
+      sessionStorage.getItem("elshorbagy_admin_user_name") ||
+      localStorage.getItem("elshorbagy_admin_user_name") ||
+      "المدير"
+    );
   });
   const [adminUsers, setAdminUsers] = useState<UserData[]>([]);
   const [isAdminUsersLoading, setIsAdminUsersLoading] = useState(false);
-  const [newAdminUsername, setNewAdminUsername] = useState('');
-  const [newAdminPassword, setNewAdminPassword] = useState('');
-  const [newAdminName, setNewAdminName] = useState('');
+  const [newAdminUsername, setNewAdminUsername] = useState("");
+  const [newAdminPassword, setNewAdminPassword] = useState("");
+  const [newAdminName, setNewAdminName] = useState("");
 
   // Edit Admin User states
   const [editingUser, setEditingUser] = useState<UserData | null>(null);
-  const [editingAdminName, setEditingAdminName] = useState('');
-  const [editingAdminUsername, setEditingAdminUsername] = useState('');
+  const [editingAdminName, setEditingAdminName] = useState("");
+  const [editingAdminUsername, setEditingAdminUsername] = useState("");
   const [showEditingPassword, setShowEditingPassword] = useState(false);
 
   // User Management State Messages & Double Delete Confirm
-  const [userTabMsg, setUserTabMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [deletingUserConfirm, setDeletingUserConfirm] = useState<UserData | null>(null);
-  const [editAdminError, setEditAdminError] = useState<string>('');
+  const [userTabMsg, setUserTabMsg] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+  const [deletingUserConfirm, setDeletingUserConfirm] =
+    useState<UserData | null>(null);
+  const [editAdminError, setEditAdminError] = useState<string>("");
 
-  const showUserMessage = (type: 'success' | 'error', text: string) => {
+  const showUserMessage = (type: "success" | "error", text: string) => {
     setUserTabMsg({ type, text });
     setTimeout(() => {
       setUserTabMsg(null);
@@ -140,35 +189,40 @@ export default function AdminView({
   // Category Management State
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
-  const [formCategoryName, setFormCategoryName] = useState('');
-  const [formCategoryImage, setFormCategoryImage] = useState('');
-  const [categoryFormError, setCategoryFormError] = useState('');
+  const [formCategoryName, setFormCategoryName] = useState("");
+  const [formCategoryImage, setFormCategoryImage] = useState("");
+  const [categoryFormError, setCategoryFormError] = useState("");
   const [isCategoryUploading, setIsCategoryUploading] = useState(false);
 
   // State to filter and only show out of stock items
   const [onlyShowOutOfStock, setOnlyShowOutOfStock] = useState<boolean>(false);
 
   // QR Code URL State (Fixed to production Vercel URL)
-  const qrCodeUrl = 'https://elshorbagy-store.vercel.app';
+  const qrCodeUrl = "https://elshorbagy-store.vercel.app";
 
   // Notification API Permission State
-  const [notificationPermission, setNotificationPermission] = useState<string>(() => {
-    return typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'default';
-  });
+  const [notificationPermission, setNotificationPermission] = useState<string>(
+    () => {
+      return typeof window !== "undefined" && "Notification" in window
+        ? Notification.permission
+        : "default";
+    },
+  );
 
   const seenOrderIdsRef = React.useRef<Set<string>>(new Set());
 
   // Dual-tone chime sound synthesizer using browser's built-in Web Audio API
   const playNotificationSound = () => {
     try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      const AudioCtx =
+        window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioCtx) return;
       const ctx = new AudioCtx();
-      
+
       // Tone 1: Standard high chime pitch
       const osc1 = ctx.createOscillator();
       const gain1 = ctx.createGain();
-      osc1.type = 'sine';
+      osc1.type = "sine";
       osc1.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
       gain1.gain.setValueAtTime(0.12, ctx.currentTime);
       gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
@@ -180,7 +234,7 @@ export default function AdminView({
       // Tone 2: Harmonious E5 pitch
       const osc2 = ctx.createOscillator();
       const gain2 = ctx.createGain();
-      osc2.type = 'sine';
+      osc2.type = "sine";
       osc2.frequency.setValueAtTime(659.25, ctx.currentTime + 0.12); // E5
       gain2.gain.setValueAtTime(0.12, ctx.currentTime + 0.12);
       gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.65);
@@ -189,31 +243,37 @@ export default function AdminView({
       osc2.start(ctx.currentTime + 0.12);
       osc2.stop(ctx.currentTime + 0.65);
     } catch (err) {
-      console.warn('Audio chime synthesis failed:', err);
+      console.warn("Audio chime synthesis failed:", err);
     }
   };
 
   const requestNotificationPermission = () => {
-    if (!('Notification' in window)) {
-      alert('هذا المتصفح لا يدعم إشعارات النظام.');
+    if (!("Notification" in window)) {
+      alert("هذا المتصفح لا يدعم إشعارات النظام.");
       return;
     }
     Notification.requestPermission().then((permission) => {
       setNotificationPermission(permission);
-      if (permission === 'granted') {
-        const dummyNotification = new Notification('تم تفعيل الإشعارات بنجاح! 🔔', {
-          body: 'ستصلك تنبيهات فورية فور ورود أي طلب جديد للمتجر.',
-          icon: '/icon.svg',
-        });
+      if (permission === "granted") {
+        const dummyNotification = new Notification(
+          "تم تفعيل الإشعارات بنجاح! 🔔",
+          {
+            body: "ستصلك تنبيهات فورية فور ورود أي طلب جديد للمتجر.",
+            icon: "/icon.svg",
+          },
+        );
         playNotificationSound();
       }
     });
   };
 
   // Category management mode state
-  const [isAdminCategoryMode, setIsAdminCategoryMode] = useState<boolean>(false);
-  const [selectedAdminCategory, setSelectedAdminCategory] = useState<string | null>(null);
-  const [adminSearchQuery, setAdminSearchQuery] = useState('');
+  const [isAdminCategoryMode, setIsAdminCategoryMode] =
+    useState<boolean>(false);
+  const [selectedAdminCategory, setSelectedAdminCategory] = useState<
+    string | null
+  >(null);
+  const [adminSearchQuery, setAdminSearchQuery] = useState("");
 
   // Orders list state
   const [orders, setOrders] = useState<OrderDetails[]>([]);
@@ -222,26 +282,27 @@ export default function AdminView({
   // Edit / Add product modal states
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null); // null means adding new
-  const [selectedInventoryProduct, setSelectedInventoryProduct] = useState<Product | null>(null); // for detailed ledger view
+  const [selectedInventoryProduct, setSelectedInventoryProduct] =
+    useState<Product | null>(null); // for detailed ledger view
 
   // Product Form Fields
-  const [formTitle, setFormTitle] = useState('');
-  const [formDescription, setFormDescription] = useState('');
-  const [formPrice, setFormPrice] = useState('');
-  const [formDiscountPrice, setFormDiscountPrice] = useState('');
-  const [formPurchasePrice, setFormPurchasePrice] = useState('');
-  const [formBarcode, setFormBarcode] = useState('');
-  const [formStock, setFormStock] = useState('50');
-  const [formDate, setFormDate] = useState('');
-  const [formCategory, setFormCategory] = useState('powders_detergents');
-  const [formBrand, setFormBrand] = useState('برسيل');
-  const [formCompany, setFormCompany] = useState('');
+  const [formTitle, setFormTitle] = useState("");
+  const [formDescription, setFormDescription] = useState("");
+  const [formPrice, setFormPrice] = useState("");
+  const [formDiscountPrice, setFormDiscountPrice] = useState("");
+  const [formPurchasePrice, setFormPurchasePrice] = useState("");
+  const [formBarcode, setFormBarcode] = useState("");
+  const [formStock, setFormStock] = useState("50");
+  const [formDate, setFormDate] = useState("");
+  const [formCategory, setFormCategory] = useState("");
+  const [formBrand, setFormBrand] = useState("برسيل");
+  const [formCompany, setFormCompany] = useState("");
   const [formImages, setFormImages] = useState<string[]>([]);
-  const [formSpecs, setFormSpecs] = useState('الحجم: 3 لتر\nالنوع: جل مركز');
-  const [formError, setFormError] = useState('');
+  const [formSpecs, setFormSpecs] = useState("الحجم: 3 لتر\nالنوع: جل مركز");
+  const [formError, setFormError] = useState("");
   const [isFormSubmitting, setIsFormSubmitting] = useState(false);
   const [isImageUploading, setIsImageUploading] = useState(false);
-  const [imageUploadError, setImageUploadError] = useState('');
+  const [imageUploadError, setImageUploadError] = useState("");
 
   // Refs for drag-and-drop reordering of images
   const dragItem = React.useRef<number | null>(null);
@@ -249,36 +310,54 @@ export default function AdminView({
 
   const existingCompanyNames = React.useMemo(() => {
     const names = new Set<string>();
-    const defaults = ["الشوربجي", "هنكل مصر", "يونيليفر", "بروكتر آند غامبل", "فاين القابضة", "زينة للورقيات"];
-    defaults.forEach(c => names.add(c));
-    products.forEach(p => {
+    const defaults = [
+      "الشوربجي",
+      "هنكل مصر",
+      "يونيليفر",
+      "بروكتر آند غامبل",
+      "فاين القابضة",
+      "زينة للورقيات",
+    ];
+    defaults.forEach((c) => names.add(c));
+    products.forEach((p) => {
       if (p.company) names.add(p.company);
     });
     return Array.from(names);
   }, [products]);
 
-  const getCategoryName = (catIdOrName: string) => {
-    const found = CATEGORIES.find(c => c.id === catIdOrName || c.name === catIdOrName);
-    return found ? found.name : catIdOrName;
+  const getCategoryName = (catId: string) => {
+    const found = categories.find((c) => c.id === catId);
+    return found ? found.name : catId;
   };
-
   const getCategoryIdToSave = (catName: string) => {
-    const found = CATEGORIES.find(c => c.name.toLowerCase() === catName.toLowerCase() || c.id.toLowerCase() === catName.toLowerCase());
+    const found = categories.find(
+      (c) =>
+        c.name.toLowerCase() === catName.toLowerCase() ||
+        c.id.toLowerCase() === catName.toLowerCase(),
+    );
+
     return found ? found.id : catName;
   };
 
   // Banner Form Fields
-  const [formBannerBadge, setFormBannerBadge] = useState(banner.badge || '');
-  const [formBannerTitle, setFormBannerTitle] = useState(banner.title || '');
-  const [formBannerSubtitle, setFormBannerSubtitle] = useState(banner.subtitle || '');
-  const [formBannerImage, setFormBannerImage] = useState(banner.image || '');
-  const [formBannerIsClosed, setFormBannerIsClosed] = useState(!!(banner as any).isClosed);
-  const [bannerSuccessMsg, setBannerSuccessMsg] = useState('');
+  const [formBannerBadge, setFormBannerBadge] = useState(banner.badge || "");
+  const [formBannerTitle, setFormBannerTitle] = useState(banner.title || "");
+  const [formBannerSubtitle, setFormBannerSubtitle] = useState(
+    banner.subtitle || "",
+  );
+  const [formBannerImage, setFormBannerImage] = useState(banner.image || "");
+  const [formBannerIsClosed, setFormBannerIsClosed] = useState(
+    !!(banner as any).isClosed,
+  );
+  const [bannerSuccessMsg, setBannerSuccessMsg] = useState("");
   const [isBannerSubmitting, setIsBannerSubmitting] = useState(false);
-  const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const [toast, setToast] = useState<{
+    type: "success" | "error" | "info";
+    text: string;
+  } | null>(null);
   const toastTimerRef = React.useRef<number | null>(null);
 
-  const showToast = (type: 'success' | 'error' | 'info', text: string) => {
+  const showToast = (type: "success" | "error" | "info", text: string) => {
     setToast({ type, text });
     if (toastTimerRef.current) {
       window.clearTimeout(toastTimerRef.current);
@@ -299,36 +378,41 @@ export default function AdminView({
   // Delete / Stock Decrease Modal States
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
-  const [deleteType, setDeleteType] = useState<'reduce' | 'full'>('reduce'); // 'reduce' = decrease stock, 'full' = delete product completely
-  const [reduceAmount, setReduceAmount] = useState<string>('1');
+  const [deleteType, setDeleteType] = useState<"reduce" | "full">("reduce"); // 'reduce' = decrease stock, 'full' = delete product completely
+  const [reduceAmount, setReduceAmount] = useState<string>("1");
   const [fullConfirmChecked, setFullConfirmChecked] = useState(false);
-  const [deleteError, setDeleteError] = useState('');
+  const [deleteError, setDeleteError] = useState("");
   const [isDeleteSubmitting, setIsDeleteSubmitting] = useState(false);
 
   // Order Detail Modal and WhatsApp / Printing Helpers
-  const [selectedDetailedOrder, setSelectedDetailedOrder] = useState<OrderDetails | null>(null);
+  const [selectedDetailedOrder, setSelectedDetailedOrder] =
+    useState<OrderDetails | null>(null);
   const [isOrderDetailsModalOpen, setIsOrderDetailsModalOpen] = useState(false);
 
   const handlePrintOrder = (order: OrderDetails) => {
-    const printWindow = window.open('', '_blank');
+    const printWindow = window.open("", "_blank");
     if (!printWindow) {
-      alert('يرجى السماح بالنوافذ المنبثقة من المتصفح لتتمكن من طباعة الفاتورة.');
+      alert(
+        "يرجى السماح بالنوافذ المنبثقة من المتصفح لتتمكن من طباعة الفاتورة.",
+      );
       return;
     }
 
-    const itemsRows = order.items.map(item => {
-      const unitPrice = item.product.discountPrice || item.product.price;
-      const totalCol = unitPrice * item.quantity;
-      return `
+    const itemsRows = order.items
+      .map((item) => {
+        const unitPrice = item.product.discountPrice || item.product.price;
+        const totalCol = unitPrice * item.quantity;
+        return `
         <tr style="border-bottom: 1px solid #edf2f7;">
           <td style="padding: 12px 10px; text-align: right; font-weight: bold; border-bottom: 1px solid #e2e8f0;">${item.product.title}</td>
-          <td style="padding: 12px 10px; text-align: center; color: #4a5568; border-bottom: 1px solid #e2e8f0;">${item.product.brand || 'عام'}</td>
+          <td style="padding: 12px 10px; text-align: center; color: #4a5568; border-bottom: 1px solid #e2e8f0;">${item.product.brand || "عام"}</td>
           <td style="padding: 12px 10px; text-align: center; font-weight: bold; border-bottom: 1px solid #e2e8f0;">${item.quantity}</td>
           <td style="padding: 12px 10px; text-align: left; color: #2d3748; border-bottom: 1px solid #e2e8f0;">${unitPrice} ج.م</td>
           <td style="padding: 12px 10px; text-align: left; font-weight: 800; color: #1a202c; border-bottom: 1px solid #e2e8f0;">${totalCol} ج.م</td>
         </tr>
       `;
-    }).join('');
+      })
+      .join("");
 
     printWindow.document.write(`
       <html dir="rtl" lang="ar">
@@ -482,7 +566,7 @@ export default function AdminView({
               <div class="info-block">
                 <span class="info-heading">📍 تفاصيل الشحن:</span>
                 <div><strong>المنطقة السكنية:</strong> ${order.customerInfo.governorate}</div>
-                <div><strong>المحل/النشاط:</strong> ${order.customerInfo.city || 'طلب شخصي'}</div>
+                <div><strong>المحل/النشاط:</strong> ${order.customerInfo.city || "طلب شخصي"}</div>
                 <div><strong>العنوان بالكامل:</strong> ${order.customerInfo.address}</div>
               </div>
             </div>
@@ -510,7 +594,7 @@ export default function AdminView({
                 </div>
                 <div class="total-row">
                   <span>تكلفة الدليفري الشحن:</span>
-                  <span>${order.shipping === 0 ? 'شحن مجاني' : `${order.shipping} ج.م`}</span>
+                  <span>${order.shipping === 0 ? "شحن مجاني" : `${order.shipping} ج.م`}</span>
                 </div>
                 <div class="total-row grand-total">
                   <span>الإجمالي المطلوب كاش:</span>
@@ -539,33 +623,44 @@ export default function AdminView({
   };
 
   const getWhatsAppManagerLink = (order: OrderDetails) => {
-    let itemsText = order.items.map(item => `- ${item.product.title} (كمية: ${item.quantity}) - السعر: ${item.product.discountPrice || item.product.price} ج.م`).join('%0A');
-    const text = `🚨 *طلب جديد رقم #${order.orderId} للتجهيز* 🚨%0A%0A` +
+    let itemsText = order.items
+      .map(
+        (item) =>
+          `- ${item.product.title} (كمية: ${item.quantity}) - السعر: ${item.product.discountPrice || item.product.price} ج.م`,
+      )
+      .join("%0A");
+    const text =
+      `🚨 *طلب جديد رقم #${order.orderId} للتجهيز* 🚨%0A%0A` +
       `👤 *العميل:* ${order.customerInfo.name}%0A` +
       `📞 *الهاتف:* ${order.customerInfo.phone}%0A` +
       `📍 *المنطقة في الإسماعيلية:* ${order.customerInfo.governorate}%0A` +
-      `🏢 *المحل/اسم النشاط:* ${order.customerInfo.city || 'أوردر شخصي (لا يوجد اسم محل)'}%0A` +
+      `🏢 *المحل/اسم النشاط:* ${order.customerInfo.city || "أوردر شخصي (لا يوجد اسم محل)"}%0A` +
       `🏠 *العنوان بالتفصيل:* ${order.customerInfo.address}%0A%0A` +
       `📦 *المنتجات المطلوبة:*%0A${itemsText}%0A%0A` +
       `💵 *قيمة المنتجات:* ${order.subtotal} ج.م%0A` +
-      `🚚 *الدليفري:* ${order.shipping === 0 ? 'شحن مجاني' : order.shipping + ' ج.م'}%0A` + 
+      `🚚 *الدليفري:* ${order.shipping === 0 ? "شحن مجاني" : order.shipping + " ج.م"}%0A` +
       `💰 *الإجمالي المطلوب:* *${order.total} ج.م*%0A%0A` +
       `برجاء سرعة التجهيز والاتصال للتحرك بالدليفري! 🚀`;
     return `https://wa.me/201203680727?text=${text}`;
   };
 
   const getWhatsAppCustomerLink = (order: OrderDetails) => {
-    const formattedPhone = order.customerInfo.phone.replace(/[^0-9]/g, '');
+    const formattedPhone = order.customerInfo.phone.replace(/[^0-9]/g, "");
     let phoneWithCountry = formattedPhone;
-    if (formattedPhone.startsWith('01')) {
-      phoneWithCountry = '2' + formattedPhone;
-    } else if (!formattedPhone.startsWith('201') && formattedPhone.startsWith('1')) {
-      phoneWithCountry = '20' + formattedPhone;
+    if (formattedPhone.startsWith("01")) {
+      phoneWithCountry = "2" + formattedPhone;
+    } else if (
+      !formattedPhone.startsWith("201") &&
+      formattedPhone.startsWith("1")
+    ) {
+      phoneWithCountry = "20" + formattedPhone;
     }
-    
-    const itemsBrief = (order.items || []).map(item => {
-      return `- ${item.product.title} (العدد: ${item.quantity})`;
-    }).join('\n');
+
+    const itemsBrief = (order.items || [])
+      .map((item) => {
+        return `- ${item.product.title} (العدد: ${item.quantity})`;
+      })
+      .join("\n");
 
     const textMessage = `أهلاً بك يا أستاذ ${order.customerInfo.name}، لقد تم استلام طلبك رقم #${order.orderId}
 
@@ -590,12 +685,18 @@ ${itemsBrief}
         id: order.id,
         orderId: order.orderId || order.id,
         items: Array.isArray(order.items) ? order.items : [],
-        customerInfo: order.customerInfo || { name: '', phone: '', governorate: '', city: '', address: '' },
+        customerInfo: order.customerInfo || {
+          name: "",
+          phone: "",
+          governorate: "",
+          city: "",
+          address: "",
+        },
         subtotal: Number(order.subtotal) || 0,
         shipping: Number(order.shipping) || 0,
         total: Number(order.total) || 0,
-        date: order.date || order.createdAt || '',
-        status: order.status || 'pending',
+        date: order.date || order.createdAt || "",
+        status: order.status || "pending",
       })) as OrderDetails[];
 
       setOrders(mappedOrders);
@@ -604,7 +705,7 @@ ${itemsBrief}
         seenOrderIdsRef.current.add(o.orderId);
       });
     } catch (e) {
-      console.error('Error fetching orders from Firestore:', e);
+      console.error("Error fetching orders from Firestore:", e);
     } finally {
       if (!silent) setIsOrdersLoading(false);
     }
@@ -617,18 +718,26 @@ ${itemsBrief}
     const pollInterval = setInterval(async () => {
       try {
         const firestoreOrders = await getFirestoreOrders();
-        const fetchedOrders: OrderDetails[] = firestoreOrders.map((order: any) => ({
-          ...order,
-          id: order.id,
-          orderId: order.orderId || order.id,
-          items: Array.isArray(order.items) ? order.items : [],
-          customerInfo: order.customerInfo || { name: '', phone: '', governorate: '', city: '', address: '' },
-          subtotal: Number(order.subtotal) || 0,
-          shipping: Number(order.shipping) || 0,
-          total: Number(order.total) || 0,
-          date: order.date || order.createdAt || '',
-          status: order.status || 'pending',
-        })) as OrderDetails[];
+        const fetchedOrders: OrderDetails[] = firestoreOrders.map(
+          (order: any) => ({
+            ...order,
+            id: order.id,
+            orderId: order.orderId || order.id,
+            items: Array.isArray(order.items) ? order.items : [],
+            customerInfo: order.customerInfo || {
+              name: "",
+              phone: "",
+              governorate: "",
+              city: "",
+              address: "",
+            },
+            subtotal: Number(order.subtotal) || 0,
+            shipping: Number(order.shipping) || 0,
+            total: Number(order.total) || 0,
+            date: order.date || order.createdAt || "",
+            status: order.status || "pending",
+          }),
+        ) as OrderDetails[];
 
         let hasNew = false;
         let latestNewOrder: OrderDetails | null = null;
@@ -642,23 +751,26 @@ ${itemsBrief}
             }
           }
         } else {
-          fetchedOrders.forEach(o => seenOrderIdsRef.current.add(o.orderId));
+          fetchedOrders.forEach((o) => seenOrderIdsRef.current.add(o.orderId));
         }
 
         setOrders(fetchedOrders);
 
         if (hasNew && latestNewOrder) {
           playNotificationSound();
-          if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification('🚨 طلب جديد بالمتجر الشوربجي!', {
+          if (
+            "Notification" in window &&
+            Notification.permission === "granted"
+          ) {
+            new Notification("🚨 طلب جديد بالمتجر الشوربجي!", {
               body: `وصلك أوردر جديد رقم ${latestNewOrder.orderId} بقيمة ${latestNewOrder.total} ج.م من العميل ${latestNewOrder.customerInfo.name}`,
-              icon: '/icon.svg',
-              requireInteraction: true
+              icon: "/icon.svg",
+              requireInteraction: true,
             });
           }
         }
       } catch (err) {
-        console.warn('Polling error:', err);
+        console.warn("Polling error:", err);
       }
     }, 7000); // Poll every 7 seconds
 
@@ -671,8 +783,8 @@ ${itemsBrief}
       const users = await getFirestoreUsers();
       setAdminUsers(users);
     } catch (err) {
-      console.error('Failed to fetch admin users:', err);
-      showUserMessage('error', 'فشل في تحميل قائمة المستخدمين من Firestore.');
+      console.error("Failed to fetch admin users:", err);
+      showUserMessage("error", "فشل في تحميل قائمة المستخدمين من Firestore.");
     } finally {
       setIsAdminUsersLoading(false);
     }
@@ -693,21 +805,21 @@ ${itemsBrief}
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoginError('');
+    setLoginError("");
     setIsLoginSubmitting(true);
 
     try {
       const { userData } = await signInAdmin(username.trim(), password);
-      const displayName = userData.displayName || userData.email || 'المدير';
-      sessionStorage.setItem('elshorbagy_admin_token', 'firebase-admin-auth');
-      localStorage.setItem('elshorbagy_admin_token', 'firebase-admin-auth');
-      sessionStorage.setItem('elshorbagy_admin_user_name', displayName);
-      localStorage.setItem('elshorbagy_admin_user_name', displayName);
+      const displayName = userData.displayName || userData.email || "المدير";
+      sessionStorage.setItem("elshorbagy_admin_token", "firebase-admin-auth");
+      localStorage.setItem("elshorbagy_admin_token", "firebase-admin-auth");
+      sessionStorage.setItem("elshorbagy_admin_user_name", displayName);
+      localStorage.setItem("elshorbagy_admin_user_name", displayName);
       setAdminDisplayName(displayName);
       setIsAuthenticated(true);
       onRefreshData();
     } catch (err: any) {
-      setLoginError(err?.message || 'فشل تسجيل الدخول عبر Firebase');
+      setLoginError(err?.message || "فشل تسجيل الدخول عبر Firebase");
     } finally {
       setIsLoginSubmitting(false);
     }
@@ -715,13 +827,13 @@ ${itemsBrief}
 
   const handleLogout = async () => {
     await signOut_();
-    sessionStorage.removeItem('elshorbagy_admin_token');
-    sessionStorage.removeItem('elshorbagy_admin_user_name');
-    localStorage.removeItem('elshorbagy_admin_token');
-    localStorage.removeItem('elshorbagy_admin_user_name');
+    sessionStorage.removeItem("elshorbagy_admin_token");
+    sessionStorage.removeItem("elshorbagy_admin_user_name");
+    localStorage.removeItem("elshorbagy_admin_token");
+    localStorage.removeItem("elshorbagy_admin_user_name");
     setIsAuthenticated(false);
-    setUsername('');
-    setPassword('');
+    setUsername("");
+    setPassword("");
   };
 
   // Open edit modal
@@ -730,46 +842,56 @@ ${itemsBrief}
     setFormTitle(product.title);
     setFormDescription(product.description);
     setFormPrice(String(product.price));
-    setFormDiscountPrice(product.discountPrice ? String(product.discountPrice) : '');
-    setFormPurchasePrice(product.purchasePrice ? String(product.purchasePrice) : '');
-    setFormBarcode(product.barcode || '');
+    setFormDiscountPrice(
+      product.discountPrice ? String(product.discountPrice) : "",
+    );
+    setFormPurchasePrice(
+      product.purchasePrice ? String(product.purchasePrice) : "",
+    );
+    setFormBarcode(product.barcode || "");
     setFormStock(String(product.stock !== undefined ? product.stock : 100));
-    setFormDate(product.addedDate || new Date().toISOString().split('T')[0]);
+    setFormDate(product.addedDate || new Date().toISOString().split("T")[0]);
     setFormCategory(product.category);
     setFormBrand(product.brand);
-    setFormCompany(product.company || '');
+    setFormCompany(product.company || "");
     setFormImages(product.images || [product.image]);
-    setImageUploadError('');
-    
+    setImageUploadError("");
+
     // Parse specs object back to multiline key: value text
     if (product.specs) {
-      const specLines = Object.entries(product.specs).map(([key, val]) => `${key}: ${val}`);
-      setFormSpecs(specLines.join('\n'));
+      const specLines = Object.entries(product.specs).map(
+        ([key, val]) => `${key}: ${val}`,
+      );
+      setFormSpecs(specLines.join("\n"));
     } else {
-      setFormSpecs('');
+      setFormSpecs("");
     }
-    setFormError('');
+    setFormError("");
     setIsProductModalOpen(true);
   };
 
   // Open add modal
   const openAddModal = () => {
+    if (categories.length === 0) {
+      showToast("error", "أضف قسم واحد على الأقل قبل إضافة المنتجات.");
+      return;
+    }
     setEditingProduct(null);
-    setFormTitle('');
-    setFormDescription('');
-    setFormPrice('');
-    setFormDiscountPrice('');
-    setFormPurchasePrice('');
-    setFormBarcode('');
-    setFormStock('100');
-    setFormDate(new Date().toISOString().split('T')[0]);
-    setFormCategory(selectedAdminCategory || 'powders_detergents');
-    setFormBrand('برسيل');
-    setFormCompany('الشوربجي');
+    setFormTitle("");
+    setFormDescription("");
+    setFormPrice("");
+    setFormDiscountPrice("");
+    setFormPurchasePrice("");
+    setFormBarcode("");
+    setFormStock("100");
+    setFormDate(new Date().toISOString().split("T")[0]);
+    setFormCategory(selectedAdminCategory || "");
+    setFormBrand("برسيل");
+    setFormCompany("الشوربجي");
     setFormImages([]);
-    setImageUploadError('');
-    setFormSpecs('الحجم: ٣ لتر\nالنوع: جل أوتوماتيك');
-    setFormError('');
+    setImageUploadError("");
+    setFormSpecs("الحجم: ٣ لتر\nالنوع: جل أوتوماتيك");
+    setFormError("");
     setIsProductModalOpen(true);
   };
 
@@ -793,10 +915,10 @@ ${itemsBrief}
   const parseSpecsText = (text: string): { [key: string]: string } => {
     const specs: { [key: string]: string } = {};
     if (!text.trim()) return specs;
-    
-    const lines = text.split('\n');
+
+    const lines = text.split("\n");
     for (const line of lines) {
-      const separatorIdx = line.indexOf(':');
+      const separatorIdx = line.indexOf(":");
       if (separatorIdx > -1) {
         const key = line.substring(0, separatorIdx).trim();
         const value = line.substring(separatorIdx + 1).trim();
@@ -811,99 +933,139 @@ ${itemsBrief}
   const handleBarcodeChange = (barcode: string) => {
     setFormBarcode(barcode);
     // Find product by barcode and pre-fill form
-    const productWithBarcode = products.find(p => p.barcode === barcode && barcode.trim() !== '');
+    const productWithBarcode = products.find(
+      (p) => p.barcode === barcode && barcode.trim() !== "",
+    );
     if (productWithBarcode) {
       // Pre-fill the form, similar to openEditModal but without setting editingProduct
       setFormTitle(productWithBarcode.title);
       setFormDescription(productWithBarcode.description);
       setFormPrice(String(productWithBarcode.price));
-      setFormDiscountPrice(productWithBarcode.discountPrice ? String(productWithBarcode.discountPrice) : '');
-      setFormPurchasePrice(productWithBarcode.purchasePrice ? String(productWithBarcode.purchasePrice) : '');
-      setFormStock(String(productWithBarcode.stock !== undefined ? productWithBarcode.stock : 100));
-      setFormDate(productWithBarcode.addedDate || new Date().toISOString().split('T')[0]);
+      setFormDiscountPrice(
+        productWithBarcode.discountPrice
+          ? String(productWithBarcode.discountPrice)
+          : "",
+      );
+      setFormPurchasePrice(
+        productWithBarcode.purchasePrice
+          ? String(productWithBarcode.purchasePrice)
+          : "",
+      );
+      setFormStock(
+        String(
+          productWithBarcode.stock !== undefined
+            ? productWithBarcode.stock
+            : 100,
+        ),
+      );
+      setFormDate(
+        productWithBarcode.addedDate || new Date().toISOString().split("T")[0],
+      );
       setFormCategory(productWithBarcode.category);
       setFormBrand(productWithBarcode.brand);
-      setFormCompany(productWithBarcode.company || '');
+      setFormCompany(productWithBarcode.company || "");
       setFormImages(productWithBarcode.images || [productWithBarcode.image]);
-      setImageUploadError('');
+      setImageUploadError("");
 
       if (productWithBarcode.specs) {
-        const specLines = Object.entries(productWithBarcode.specs).map(([key, val]) => `${key}: ${val}`);
-        setFormSpecs(specLines.join('\n'));
+        const specLines = Object.entries(productWithBarcode.specs).map(
+          ([key, val]) => `${key}: ${val}`,
+        );
+        setFormSpecs(specLines.join("\n"));
       } else {
-        setFormSpecs('');
+        setFormSpecs("");
       }
-      showToast('info', `تم العثور على منتج بنفس الباركود وتم ملء الحقول.`);
+      showToast("info", `تم العثور على منتج بنفس الباركود وتم ملء الحقول.`);
     }
   };
-  const handleProductFormSubmit = async (e: React.FormEvent, forceAsNew = false) => {
+  const handleProductFormSubmit = async (
+    e: React.FormEvent,
+    forceAsNew = false,
+  ) => {
     if (e) e.preventDefault();
-    setFormError('');
+    setFormError("");
 
     if (!formTitle.trim()) {
-      setFormError('الرجاء إدخال عنوان المنتج');
+      setFormError("الرجاء إدخال عنوان المنتج");
+      return;
+    }
+    if (!formCategory) {
+      setFormError("يرجى اختيار القسم");
       return;
     }
     const priceNum = Number(formPrice);
     if (isNaN(priceNum) || priceNum <= 0) {
-      setFormError('الرجاء كتابة سعر أصلي صحيح أكبر من الصفر');
+      setFormError("الرجاء كتابة سعر أصلي صحيح أكبر من الصفر");
       return;
     }
 
     const discNum = formDiscountPrice ? Number(formDiscountPrice) : undefined;
-    if (discNum !== undefined && (isNaN(discNum) || discNum >= priceNum || discNum < 0)) {
-      setFormError('السعر بعد الخصم يجب أن يكون أقل من السعر الأصلي وليس بالسالب');
+    if (
+      discNum !== undefined &&
+      (isNaN(discNum) || discNum >= priceNum || discNum < 0)
+    ) {
+      setFormError(
+        "السعر بعد الخصم يجب أن يكون أقل من السعر الأصلي وليس بالسالب",
+      );
       return;
     }
 
-    const purchasePriceNum = formPurchasePrice ? Number(formPurchasePrice) : undefined;
-    if (purchasePriceNum !== undefined && (isNaN(purchasePriceNum) || purchasePriceNum < 0)) {
-      setFormError('سعر الشراء يجب أن يكون رقم صحيح موجب');
+    const purchasePriceNum = formPurchasePrice
+      ? Number(formPurchasePrice)
+      : undefined;
+    if (
+      purchasePriceNum !== undefined &&
+      (isNaN(purchasePriceNum) || purchasePriceNum < 0)
+    ) {
+      setFormError("سعر الشراء يجب أن يكون رقم صحيح موجب");
       return;
     }
 
     setIsFormSubmitting(true);
 
     if (isImageUploading) {
-      setFormError('يرجى انتظار انتهاء رفع الصورة قبل الحفظ.');
+      setFormError("يرجى انتظار انتهاء رفع الصورة قبل الحفظ.");
       return;
     }
 
     const parsedSpecs = parseSpecsText(formSpecs);
-    const imageUrl = formImages.length > 0 ? formImages[0] : 'https://images.unsplash.com/photo-1628177142898-93e36e4e3a50?auto=format&fit=crop&q=80&w=800';
-   const bodyPayload = {
-     title: formTitle.trim(),
-     description: formDescription.trim(),
-     price: priceNum,
-     discountPrice: discNum ?? null, // إذا لم يُدخل خصم، ستكون القيمة null بدلاً من undefined
-     purchasePrice: purchasePriceNum ?? null, // إذا لم يُدخل سعر الشراء، ستكون null
-     barcode: formBarcode.trim() || null, // إذا كان الباركود فارغاً، سيكون null
-     stock: Number(formStock),
-     addedDate: formDate || new Date().toISOString().split("T")[0],
-     category: formCategory.trim(),
-     brand: formBrand.trim(),
-     company: formCompany.trim(),
-     image: formImages[0] || imageUrl,
-     images: formImages.length > 0 ? formImages : [imageUrl],
-     specs: parsedSpecs,
-   };
+    const imageUrl =
+      formImages.length > 0
+        ? formImages[0]
+        : "https://images.unsplash.com/photo-1628177142898-93e36e4e3a50?auto=format&fit=crop&q=80&w=800";
+    const bodyPayload = {
+      title: formTitle.trim(),
+      description: formDescription.trim(),
+      price: priceNum,
+      discountPrice: discNum ?? null, // إذا لم يُدخل خصم، ستكون القيمة null بدلاً من undefined
+      purchasePrice: purchasePriceNum ?? null, // إذا لم يُدخل سعر الشراء، ستكون null
+      barcode: formBarcode.trim() || null, // إذا كان الباركود فارغاً، سيكون null
+      stock: Number(formStock),
+      addedDate: formDate || new Date().toISOString().split("T")[0],
+      category: formCategory.trim(),
+      brand: formBrand.trim(),
+      company: formCompany.trim(),
+      image: formImages[0] || imageUrl,
+      images: formImages.length > 0 ? formImages : [imageUrl],
+      specs: parsedSpecs,
+    };
 
     try {
       const isNew = forceAsNew || !editingProduct;
 
       if (isNew) {
         await addFirestoreProduct(bodyPayload as any);
-        showToast('success', 'تم إضافة المنتج بنجاح ✅');
+        showToast("success", "تم إضافة المنتج بنجاح ✅");
       } else {
         await updateFirestoreProduct(editingProduct!.id, bodyPayload as any);
-        showToast('success', 'تم تحديث المنتج بنجاح ✅');
+        showToast("success", "تم تحديث المنتج بنجاح ✅");
       }
 
       setIsProductModalOpen(false);
       onRefreshData();
     } catch (err) {
-      setFormError('خطأ في حفظ المنتج إلى Firestore.');
-      showToast('error', 'فشل حفظ المنتج في Firestore');
+      setFormError("خطأ في حفظ المنتج إلى Firestore.");
+      showToast("error", "فشل حفظ المنتج في Firestore");
     } finally {
       setIsFormSubmitting(false);
     }
@@ -911,49 +1073,56 @@ ${itemsBrief}
 
   const openDeleteModal = (product: Product) => {
     setDeletingProduct(product);
-    setDeleteType('reduce');
-    setReduceAmount('1');
+    setDeleteType("reduce");
+    setReduceAmount("1");
     setFullConfirmChecked(false);
-    setDeleteError('');
+    setDeleteError("");
     setIsDeleteModalOpen(true);
   };
 
   const executeDeleteOrReduction = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!deletingProduct) return;
-    setDeleteError('');
+    setDeleteError("");
     setIsDeleteSubmitting(true);
 
     try {
-      if (deleteType === 'reduce') {
+      if (deleteType === "reduce") {
         const amt = Number(reduceAmount);
         if (isNaN(amt) || amt <= 0) {
-          setDeleteError('الرجاء إدخال كمية صحيحة أكبر من الصفر لنقصها');
+          setDeleteError("الرجاء إدخال كمية صحيحة أكبر من الصفر لنقصها");
           setIsDeleteSubmitting(false);
           return;
         }
-        const currentStock = deletingProduct.stock !== undefined ? deletingProduct.stock : 100;
+        const currentStock =
+          deletingProduct.stock !== undefined ? deletingProduct.stock : 100;
         if (amt > currentStock) {
-          setDeleteError(`الكمية المراد حذفها (${amt}) أكبر من الكمية المتاحة حالياً في المخزن (${currentStock})`);
+          setDeleteError(
+            `الكمية المراد حذفها (${amt}) أكبر من الكمية المتاحة حالياً في المخزن (${currentStock})`,
+          );
           setIsDeleteSubmitting(false);
           return;
         }
 
         const newStock = Math.max(0, currentStock - amt);
-        
+
         try {
-          await updateFirestoreProduct(deletingProduct.id, { stock: newStock } as any);
+          await updateFirestoreProduct(deletingProduct.id, {
+            stock: newStock,
+          } as any);
           setIsDeleteModalOpen(false);
           onRefreshData();
-          showToast('success', `تم تخفيض المخزون بنجاح إلى ${newStock} وحدة`);
+          showToast("success", `تم تخفيض المخزون بنجاح إلى ${newStock} وحدة`);
         } catch (err) {
-          setDeleteError('فشل تعديل كمية المخزون في Firestore');
-          showToast('error', 'فشل تخفيض المخزون');
+          setDeleteError("فشل تعديل كمية المخزون في Firestore");
+          showToast("error", "فشل تخفيض المخزون");
         }
       } else {
         // Full delete
         if (!fullConfirmChecked) {
-          setDeleteError('يرجى النقر على مربع التأكيد للموافقة على الحذف النهائي للمنتج.');
+          setDeleteError(
+            "يرجى النقر على مربع التأكيد للموافقة على الحذف النهائي للمنتج.",
+          );
           setIsDeleteSubmitting(false);
           return;
         }
@@ -962,14 +1131,14 @@ ${itemsBrief}
           await deleteFirestoreProduct(deletingProduct.id);
           setIsDeleteModalOpen(false);
           onRefreshData();
-          showToast('success', 'تم حذف المنتج بنجاح 🗑️');
+          showToast("success", "تم حذف المنتج بنجاح 🗑️");
         } catch (err) {
-          setDeleteError('فشل حذف المنتج من Firestore.');
-          showToast('error', 'فشل حذف المنتج');
+          setDeleteError("فشل حذف المنتج من Firestore.");
+          showToast("error", "فشل حذف المنتج");
         }
       }
     } catch (err) {
-      setDeleteError('خطأ بالاتصال بالشبكة.');
+      setDeleteError("خطأ بالاتصال بالشبكة.");
     } finally {
       setIsDeleteSubmitting(false);
     }
@@ -977,7 +1146,7 @@ ${itemsBrief}
 
   const handleUpdateBanner = async (e: React.FormEvent) => {
     e.preventDefault();
-    setBannerSuccessMsg('');
+    setBannerSuccessMsg("");
     setIsBannerSubmitting(true);
 
     try {
@@ -989,10 +1158,10 @@ ${itemsBrief}
         isClosed: formBannerIsClosed,
       });
 
-      setBannerSuccessMsg('تم تحديث بيانات الصفحة الرئيسية بنجاح! 🚀');
+      setBannerSuccessMsg("تم تحديث بيانات الصفحة الرئيسية بنجاح! 🚀");
       onRefreshData();
     } catch (err) {
-      alert('حدث خطأ أثناء حفظ التحديثات في Firestore.');
+      alert("حدث خطأ أثناء حفظ التحديثات في Firestore.");
     } finally {
       setIsBannerSubmitting(false);
     }
@@ -1000,17 +1169,17 @@ ${itemsBrief}
 
   const openAddCategoryModal = () => {
     setEditingCategory(null);
-    setFormCategoryName('');
-    setFormCategoryImage('');
-    setCategoryFormError('');
+    setFormCategoryName("");
+    setFormCategoryImage("");
+    setCategoryFormError("");
     setIsCategoryModalOpen(true);
   };
 
   const openEditCategoryModal = (category: Category) => {
     setEditingCategory(category);
     setFormCategoryName(category.name);
-    setFormCategoryImage(category.image || '');
-    setCategoryFormError('');
+    setFormCategoryImage(category.image || "");
+    setCategoryFormError("");
     setIsCategoryModalOpen(true);
   };
 
@@ -1018,7 +1187,7 @@ ${itemsBrief}
     e.preventDefault();
     if (isCategoryUploading) return;
     if (!formCategoryName.trim()) {
-      setCategoryFormError('يرجى إدخال اسم القسم.');
+      setCategoryFormError("يرجى إدخال اسم القسم.");
       return;
     }
 
@@ -1031,16 +1200,16 @@ ${itemsBrief}
       setIsCategoryUploading(true);
       if (editingCategory) {
         await updateFirestoreCategory(editingCategory.id, payload);
-        showToast('success', 'تم تحديث القسم بنجاح.');
+        showToast("success", "تم تحديث القسم بنجاح.");
       } else {
         await addFirestoreCategory(payload);
-        showToast('success', 'تمت إضافة القسم بنجاح.');
+        showToast("success", "تمت إضافة القسم بنجاح.");
       }
       setIsCategoryModalOpen(false);
       onRefreshData();
     } catch (err) {
-      setCategoryFormError('حدث خطأ أثناء حفظ القسم في Firestore.');
-      showToast('error', 'فشل حفظ القسم.');
+      setCategoryFormError("حدث خطأ أثناء حفظ القسم في Firestore.");
+      showToast("error", "فشل حفظ القسم.");
     } finally {
       setIsCategoryUploading(false);
     }
@@ -1048,7 +1217,9 @@ ${itemsBrief}
 
   // View total calculations
   const totalStock = products.reduce((sum, p) => sum + (p.stock || 0), 0);
-  const outOfStockItems = products.filter(p => !p.stock || p.stock <= 0).length;
+  const outOfStockItems = products.filter(
+    (p) => !p.stock || p.stock <= 0,
+  ).length;
 
   if (!isAuthenticated) {
     return (
@@ -1056,9 +1227,12 @@ ${itemsBrief}
         <div className="w-16 h-16 bg-[#eafbf2] text-[#00bf63] rounded-2xl flex items-center justify-center text-2xl mx-auto mb-6">
           <FaLock />
         </div>
-        <h2 className="text-2xl font-black text-gray-800 text-center mb-2">تسجيل دخول لوحة التحكم</h2>
+        <h2 className="text-2xl font-black text-gray-800 text-center mb-2">
+          تسجيل دخول لوحة التحكم
+        </h2>
         <p className="text-xs text-gray-400 font-semibold text-center mb-6 leading-relaxed">
-          هذه الصفحة مخصصة للمدير والمسؤول فقط لتعديل المنتجات والمخزون ومتابعة المبيعات الحية.
+          هذه الصفحة مخصصة للمدير والمسؤول فقط لتعديل المنتجات والمخزون ومتابعة
+          المبيعات الحية.
         </p>
 
         {loginError && (
@@ -1069,7 +1243,9 @@ ${itemsBrief}
 
         <form onSubmit={handleLoginSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-extrabold text-gray-600 mb-1">البريد الإلكتروني كمسؤول</label>
+            <label className="block text-xs font-extrabold text-gray-600 mb-1">
+              البريد الإلكتروني كمسؤول
+            </label>
             <input
               type="email"
               required
@@ -1081,7 +1257,9 @@ ${itemsBrief}
           </div>
 
           <div>
-            <label className="block text-xs font-extrabold text-gray-600 mb-1">كلمة المرور السرية</label>
+            <label className="block text-xs font-extrabold text-gray-600 mb-1">
+              كلمة المرور السرية
+            </label>
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
@@ -1097,11 +1275,22 @@ ${itemsBrief}
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none transition-colors"
                 title={showPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
               >
-                {showPassword ? <FaEyeSlash className="text-sm" /> : <FaEye className="text-sm" />}
+                {showPassword ? (
+                  <FaEyeSlash className="text-sm" />
+                ) : (
+                  <FaEye className="text-sm" />
+                )}
               </button>
             </div>
             <p className="text-[10px] text-amber-600 font-extrabold mt-1.5 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200 text-right">
-              💡 استخدم حساب admin في Firebase: البريد الإلكتروني <span className="font-mono text-gray-700 bg-white px-1 py-0.5 rounded border border-gray-200">admin@elshorbagy.com</span> وكلمة المرور <span className="font-mono text-gray-700 bg-white px-1 py-0.5 rounded border border-gray-200">Admin@123</span>
+              💡 استخدم حساب admin في Firebase: البريد الإلكتروني{" "}
+              <span className="font-mono text-gray-700 bg-white px-1 py-0.5 rounded border border-gray-200">
+                admin@elshorbagy.com
+              </span>{" "}
+              وكلمة المرور{" "}
+              <span className="font-mono text-gray-700 bg-white px-1 py-0.5 rounded border border-gray-200">
+                Admin@123
+              </span>
             </p>
           </div>
 
@@ -1110,7 +1299,7 @@ ${itemsBrief}
             disabled={isLoginSubmitting}
             className="w-full py-3.5 bg-[#00bf63] hover:bg-brand-green-dark text-white text-xs sm:text-sm font-extrabold rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
-            {isLoginSubmitting ? 'جاري التحقق...' : 'تأكيد الدخول كمدير 🔐'}
+            {isLoginSubmitting ? "جاري التحقق..." : "تأكيد الدخول كمدير 🔐"}
           </button>
         </form>
       </div>
@@ -1120,16 +1309,19 @@ ${itemsBrief}
   return (
     <div className="max-w-7xl mx-auto py-4 px-2 sm:px-4 font-sans text-right select-none">
       {toast && (
-        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[60] px-4 py-3 rounded-2xl shadow-lg border text-sm font-black backdrop-blur ${toast.type === 'success'
-          ? 'bg-[#eafbf2] border-[#00bf63] text-[#00bf63]'
-          : toast.type === 'error'
-            ? 'bg-[#fff1f2] border-[#ef4444] text-[#ef4444]'
-            : 'bg-[#eff6ff] border-[#3b82f6] text-[#2563eb]'
-          }`}>
+        <div
+          className={`fixed top-4 left-1/2 -translate-x-1/2 z-[60] px-4 py-3 rounded-2xl shadow-lg border text-sm font-black backdrop-blur ${
+            toast.type === "success"
+              ? "bg-[#eafbf2] border-[#00bf63] text-[#00bf63]"
+              : toast.type === "error"
+                ? "bg-[#fff1f2] border-[#ef4444] text-[#ef4444]"
+                : "bg-[#eff6ff] border-[#3b82f6] text-[#2563eb]"
+          }`}
+        >
           {toast.text}
         </div>
       )}
-      
+
       {/* Admin Dashboard header info */}
       <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm mb-8 flex flex-col md:flex-row items-center justify-between gap-4">
         <div>
@@ -1140,7 +1332,8 @@ ${itemsBrief}
             </span>
           </h1>
           <p className="text-xs text-gray-400 font-bold mt-1">
-            إدارة مباشرة وفورية للمخزن، تحديث الأسعار، تعديل لافتة الإعلان الرئيسي وتتبع كشف الطلبات المستلمة.
+            إدارة مباشرة وفورية للمخزن، تحديث الأسعار، تعديل لافتة الإعلان
+            الرئيسي وتتبع كشف الطلبات المستلمة.
           </p>
         </div>
 
@@ -1148,12 +1341,16 @@ ${itemsBrief}
           <button
             onClick={requestNotificationPermission}
             className={`px-4 py-2 text-xs font-black rounded-xl transition-all border shadow-xs cursor-pointer flex items-center gap-1.5 ${
-              notificationPermission === 'granted'
-                ? 'bg-green-50 text-[#00bf63] border-green-200'
-                : 'bg-[#00bf63] text-white hover:bg-brand-green-dark animate-pulse'
+              notificationPermission === "granted"
+                ? "bg-green-50 text-[#00bf63] border-green-200"
+                : "bg-[#00bf63] text-white hover:bg-brand-green-dark animate-pulse"
             }`}
           >
-            <span>{notificationPermission === 'granted' ? 'الإشعارات مفعلة ✅' : 'تشغيل الإشعارات المستمرة 🔔'}</span>
+            <span>
+              {notificationPermission === "granted"
+                ? "الإشعارات مفعلة ✅"
+                : "تشغيل الإشعارات المستمرة 🔔"}
+            </span>
           </button>
 
           <button
@@ -1162,7 +1359,7 @@ ${itemsBrief}
           >
             تحديث البيانات 🔄
           </button>
-          
+
           <button
             onClick={handleLogout}
             className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 text-xs font-black rounded-xl transition-colors cursor-pointer flex items-center gap-1.5"
@@ -1177,16 +1374,20 @@ ${itemsBrief}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <button
           onClick={() => {
-            setActiveTab('products');
+            setActiveTab("products");
             setOnlyShowOutOfStock(false);
             setIsAdminCategoryMode(false);
-            setAdminSearchQuery('');
+            setAdminSearchQuery("");
           }}
           className="text-right w-full bg-gradient-to-br from-[#eefaf3] to-white p-4 rounded-2xl border border-[#d6f5e3] flex items-center justify-between cursor-pointer hover:shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all"
         >
           <div>
-            <span className="text-[10px] md:text-xs text-gray-500 font-extrabold block">إجمالي المنتجات 📦</span>
-            <span className="text-xl md:text-3xl font-black text-gray-800 mt-1 block">{products.length} منتج</span>
+            <span className="text-[10px] md:text-xs text-gray-500 font-extrabold block">
+              إجمالي المنتجات 📦
+            </span>
+            <span className="text-xl md:text-3xl font-black text-gray-800 mt-1 block">
+              {products.length} منتج
+            </span>
           </div>
           <div className="text-lg md:text-2xl text-[#00bf63] w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-xs">
             <FaCubes />
@@ -1195,16 +1396,20 @@ ${itemsBrief}
 
         <button
           onClick={() => {
-            setActiveTab('products');
+            setActiveTab("products");
             setOnlyShowOutOfStock(false);
             setIsAdminCategoryMode(false);
-            setAdminSearchQuery('');
+            setAdminSearchQuery("");
           }}
           className="text-right w-full bg-gradient-to-br from-blue-50 to-white p-4 rounded-2xl border border-blue-100 flex items-center justify-between cursor-pointer hover:shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all"
         >
           <div>
-            <span className="text-[10px] md:text-xs text-gray-500 font-extrabold block">مستودع المخزون 🏭</span>
-            <span className="text-xl md:text-3xl font-black text-gray-800 mt-1 block">{totalStock} قطعة</span>
+            <span className="text-[10px] md:text-xs text-gray-500 font-extrabold block">
+              مستودع المخزون 🏭
+            </span>
+            <span className="text-xl md:text-3xl font-black text-gray-800 mt-1 block">
+              {totalStock} قطعة
+            </span>
           </div>
           <div className="text-lg md:text-2xl text-blue-500 w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-xs">
             <FaDollyFlatbed />
@@ -1213,18 +1418,24 @@ ${itemsBrief}
 
         <button
           onClick={() => {
-            setActiveTab('products');
+            setActiveTab("products");
             setOnlyShowOutOfStock(true);
             setIsAdminCategoryMode(false);
-            setAdminSearchQuery('');
+            setAdminSearchQuery("");
           }}
           className={`text-right w-full bg-gradient-to-br from-amber-50 to-white p-4 rounded-2xl border flex items-center justify-between cursor-pointer hover:shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all ${
-            onlyShowOutOfStock ? 'border-red-400 ring-2 ring-red-100' : 'border-amber-100'
+            onlyShowOutOfStock
+              ? "border-red-400 ring-2 ring-red-100"
+              : "border-amber-100"
           }`}
         >
           <div>
-            <span className="text-[10px] md:text-xs text-gray-500 font-extrabold block">منتجات نفدت ⚠️</span>
-            <span className="text-xl md:text-3xl font-black text-red-600 mt-1 block">{outOfStockItems} منتج</span>
+            <span className="text-[10px] md:text-xs text-gray-500 font-extrabold block">
+              منتجات نفدت ⚠️
+            </span>
+            <span className="text-xl md:text-3xl font-black text-red-600 mt-1 block">
+              {outOfStockItems} منتج
+            </span>
           </div>
           <div className="text-lg md:text-2xl text-amber-500 w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-xs">
             <FaLock className="text-red-500" />
@@ -1232,23 +1443,27 @@ ${itemsBrief}
         </button>
 
         {(() => {
-          const pendingCount = orders.filter(o => o.status !== 'delivered').length;
+          const pendingCount = orders.filter(
+            (o) => o.status !== "delivered",
+          ).length;
           const isPulsing = pendingCount > 0;
           return (
             <button
               onClick={() => {
-                setActiveTab('orders');
+                setActiveTab("orders");
                 fetchOrders(true);
               }}
               className={`text-right w-full bg-gradient-to-br p-4 rounded-2xl border flex items-center justify-between cursor-pointer hover:shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all ${
-                isPulsing 
-                  ? 'from-red-50 to-white border-red-200 ring-2 ring-red-100 animate-pulse' 
-                  : 'from-purple-50 to-white border-purple-100'
+                isPulsing
+                  ? "from-red-50 to-white border-red-200 ring-2 ring-red-100 animate-pulse"
+                  : "from-purple-50 to-white border-purple-100"
               }`}
             >
               <div>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] md:text-xs text-gray-500 font-extrabold block">الطلبات المستلمة ({orders.length})</span>
+                  <span className="text-[10px] md:text-xs text-gray-500 font-extrabold block">
+                    الطلبات المستلمة ({orders.length})
+                  </span>
                   {isPulsing && (
                     <span className="relative flex h-2.5 w-2.5">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
@@ -1256,8 +1471,13 @@ ${itemsBrief}
                     </span>
                   )}
                 </div>
-                <span className={`text-xl md:text-2xl font-black mt-1 block ${isPulsing ? 'text-red-600' : 'text-purple-600'}`}>
-                  {orders.reduce((sum, o) => sum + o.total, 0).toLocaleString('ar-EG')} ج.م
+                <span
+                  className={`text-xl md:text-2xl font-black mt-1 block ${isPulsing ? "text-red-600" : "text-purple-600"}`}
+                >
+                  {orders
+                    .reduce((sum, o) => sum + o.total, 0)
+                    .toLocaleString("ar-EG")}{" "}
+                  ج.م
                 </span>
                 {isPulsing && (
                   <span className="text-[9px] text-red-500 font-black block animate-bounce mt-0.5">
@@ -1266,7 +1486,9 @@ ${itemsBrief}
                 )}
               </div>
               <div className="text-lg md:text-2xl text-purple-500 w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-xs">
-                <FaMoneyBillWave className={isPulsing ? 'text-red-500 animate-spin-slow' : ''} />
+                <FaMoneyBillWave
+                  className={isPulsing ? "text-red-500 animate-spin-slow" : ""}
+                />
               </div>
             </button>
           );
@@ -1276,9 +1498,14 @@ ${itemsBrief}
       {/* Tabs list switches */}
       <div className="flex border-b border-gray-200 mb-6 gap-2">
         <button
-          onClick={() => { setActiveTab('products'); setOnlyShowOutOfStock(false); }}
+          onClick={() => {
+            setActiveTab("products");
+            setOnlyShowOutOfStock(false);
+          }}
           className={`px-5 py-3 text-xs md:text-sm font-black border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
-            activeTab === 'products' ? 'border-[#00bf63] text-[#00bf63]' : 'border-transparent text-gray-400 hover:text-gray-600'
+            activeTab === "products"
+              ? "border-[#00bf63] text-[#00bf63]"
+              : "border-transparent text-gray-400 hover:text-gray-600"
           }`}
         >
           <FaBoxOpen />
@@ -1286,9 +1513,14 @@ ${itemsBrief}
         </button>
 
         <button
-          onClick={() => { setActiveTab('orders'); fetchOrders(); }}
+          onClick={() => {
+            setActiveTab("orders");
+            fetchOrders();
+          }}
           className={`px-5 py-3 text-xs md:text-sm font-black border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
-            activeTab === 'orders' ? 'border-[#00bf63] text-[#00bf63]' : 'border-transparent text-gray-400 hover:text-gray-600'
+            activeTab === "orders"
+              ? "border-[#00bf63] text-[#00bf63]"
+              : "border-transparent text-gray-400 hover:text-gray-600"
           }`}
         >
           <FaClipboardList />
@@ -1296,18 +1528,27 @@ ${itemsBrief}
         </button>
 
         <button
-          onClick={() => { setActiveTab('categories'); }}
-          className={`px-5 py-3 text-xs md:text-sm font-black border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${activeTab === 'categories' ? 'border-[#00bf63] text-[#00bf63]' : 'border-transparent text-gray-400 hover:text-gray-600'
-            }`}
+          onClick={() => {
+            setActiveTab("categories");
+          }}
+          className={`px-5 py-3 text-xs md:text-sm font-black border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+            activeTab === "categories"
+              ? "border-[#00bf63] text-[#00bf63]"
+              : "border-transparent text-gray-400 hover:text-gray-600"
+          }`}
         >
           <FaTags />
           <span>إدارة الأقسام ({categories.length})</span>
         </button>
 
         <button
-          onClick={() => { setActiveTab('inventory'); }}
+          onClick={() => {
+            setActiveTab("inventory");
+          }}
           className={`px-5 py-3 text-xs md:text-sm font-black border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
-            activeTab === 'inventory' ? 'border-[#00bf63] text-[#00bf63]' : 'border-transparent text-gray-400 hover:text-gray-600'
+            activeTab === "inventory"
+              ? "border-[#00bf63] text-[#00bf63]"
+              : "border-transparent text-gray-400 hover:text-gray-600"
           }`}
         >
           <FaCubes className="text-amber-500 animate-pulse" />
@@ -1315,9 +1556,13 @@ ${itemsBrief}
         </button>
 
         <button
-          onClick={() => { setActiveTab('banner'); }}
+          onClick={() => {
+            setActiveTab("banner");
+          }}
           className={`px-5 py-3 text-xs md:text-sm font-black border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
-            activeTab === 'banner' ? 'border-[#00bf63] text-[#00bf63]' : 'border-transparent text-gray-400 hover:text-gray-600'
+            activeTab === "banner"
+              ? "border-[#00bf63] text-[#00bf63]"
+              : "border-transparent text-gray-400 hover:text-gray-600"
           }`}
         >
           <FaSlidersH />
@@ -1325,9 +1570,13 @@ ${itemsBrief}
         </button>
 
         <button
-          onClick={() => { setActiveTab('users'); }}
+          onClick={() => {
+            setActiveTab("users");
+          }}
           className={`px-5 py-3 text-xs md:text-sm font-black border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
-            activeTab === 'users' ? 'border-[#00bf63] text-[#00bf63]' : 'border-transparent text-gray-400 hover:text-gray-600'
+            activeTab === "users"
+              ? "border-[#00bf63] text-[#00bf63]"
+              : "border-transparent text-gray-400 hover:text-gray-600"
           }`}
         >
           <FaLock className="text-blue-500" />
@@ -1335,9 +1584,13 @@ ${itemsBrief}
         </button>
 
         <button
-          onClick={() => { setActiveTab('qrcode'); }}
+          onClick={() => {
+            setActiveTab("qrcode");
+          }}
           className={`px-5 py-3 text-xs md:text-sm font-black border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
-            activeTab === 'qrcode' ? 'border-[#00bf63] text-[#00bf63]' : 'border-transparent text-gray-400 hover:text-gray-600'
+            activeTab === "qrcode"
+              ? "border-[#00bf63] text-[#00bf63]"
+              : "border-transparent text-gray-400 hover:text-gray-600"
           }`}
         >
           <span className="text-base">📱</span>
@@ -1346,11 +1599,15 @@ ${itemsBrief}
       </div>
 
       {/**************** TAB: PRODUCTS *****************/}
-      {activeTab === 'products' && (
+      {activeTab === "products" && (
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <h3 className="text-lg font-black text-gray-800 flex items-center gap-2 flex-wrap">
-              <span>{isAdminCategoryMode ? 'تصفح وعرض المنتجات حسب الأقسام 📦' : 'قائمة معروضات المتجر والمخزن الكلي 📋'}</span>
+              <span>
+                {isAdminCategoryMode
+                  ? "تصفح وعرض المنتجات حسب الأقسام 📦"
+                  : "قائمة معروضات المتجر والمخزن الكلي 📋"}
+              </span>
               {onlyShowOutOfStock && (
                 <span className="bg-red-50 border border-red-200 text-red-600 px-3 py-1 rounded-full text-xs font-black flex items-center gap-1.5 animate-pulse-subtle">
                   <span>المنتجات النافذة فقط ⚠️</span>
@@ -1365,7 +1622,7 @@ ${itemsBrief}
                 </span>
               )}
             </h3>
-            
+
             <div className="flex flex-wrap items-center gap-2.5">
               {/* Search Bar */}
               <div className="relative">
@@ -1395,13 +1652,15 @@ ${itemsBrief}
                     setSelectedAdminCategory(null);
                   } else {
                     setIsAdminCategoryMode(true);
-                    setSelectedAdminCategory(categories.length > 0 ? categories[0].id : null);
+                    setSelectedAdminCategory(
+                      categories.length > 0 ? categories[0].id : null,
+                    );
                   }
                 }}
                 className={`px-5 py-3 rounded-xl text-xs font-black shadow-sm flex items-center gap-2 cursor-pointer transition-all border ${
-                  isAdminCategoryMode 
-                    ? 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100' 
-                    : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                  isAdminCategoryMode
+                    ? "bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100"
+                    : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
                 }`}
               >
                 {isAdminCategoryMode ? (
@@ -1422,10 +1681,14 @@ ${itemsBrief}
           {/* Categories Grid (Visible only in isAdminCategoryMode) */}
           {isAdminCategoryMode && (
             <div className="bg-gray-50/50 p-4 border border-gray-150 rounded-2xl">
-              <span className="block text-xs font-extrabold text-gray-500 mb-3 text-right">أقسام المتجر المتوفرة بالمستودع:</span>
+              <span className="block text-xs font-extrabold text-gray-500 mb-3 text-right">
+                أقسام المتجر المتوفرة بالمستودع:
+              </span>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
                 {categories.map((cat) => {
-                  const productCount = products.filter(p => p.category === cat.id).length;
+                  const productCount = products.filter(
+                    (p) => p.category === cat.id,
+                  ).length;
                   const isSelected = selectedAdminCategory === cat.id;
                   return (
                     <button
@@ -1433,18 +1696,29 @@ ${itemsBrief}
                       key={cat.id}
                       onClick={() => setSelectedAdminCategory(cat.id)}
                       className={`p-3.5 rounded-2xl border text-center flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-all ${
-                        isSelected 
-                          ? 'border-[#00bf63] bg-green-50/40 text-[#00bf63] font-black ring-2 ring-[#00bf63]/20 shadow-xs' 
-                          : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50/50 hover:border-gray-300'
+                        isSelected
+                          ? "border-[#00bf63] bg-green-50/40 text-[#00bf63] font-black ring-2 ring-[#00bf63]/20 shadow-xs"
+                          : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50/50 hover:border-gray-300"
                       }`}
                     >
-                      <img src={cat.image || 'https://res.cloudinary.com/dglhc1pfj/image/upload/v1718817951/tag-placeholder_u5gy9y.png'} alt={cat.name} className="w-8 h-8 object-contain rounded-md" />
-                      <span className="text-xs font-black truncate max-w-full">{cat.name}</span>
-                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
-                        isSelected 
-                          ? 'bg-green-100/60 border-green-200 text-green-700' 
-                          : 'bg-gray-50 border-gray-100 text-gray-400'
-                      }`}>
+                      <img
+                        src={
+                          cat.image ||
+                          "https://res.cloudinary.com/dglhc1pfj/image/upload/v1718817951/tag-placeholder_u5gy9y.png"
+                        }
+                        alt={cat.name}
+                        className="w-8 h-8 object-contain rounded-md"
+                      />
+                      <span className="text-xs font-black truncate max-w-full">
+                        {cat.name}
+                      </span>
+                      <span
+                        className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+                          isSelected
+                            ? "bg-green-100/60 border-green-200 text-green-700"
+                            : "bg-gray-50 border-gray-100 text-gray-400"
+                        }`}
+                      >
                         {productCount} منتج
                       </span>
                     </button>
@@ -1477,9 +1751,13 @@ ${itemsBrief}
               return (
                 <div className="text-center py-16 bg-white border border-gray-150 rounded-2xl shadow-xs space-y-3">
                   <span className="text-3xl">🔍</span>
-                  <p className="text-sm font-black text-gray-700">لم يتم العثور على أي منتجات مطابقة للبحث أو القسم</p>
+                  <p className="text-sm font-black text-gray-700">
+                    لم يتم العثور على أي منتجات مطابقة للبحث أو القسم
+                  </p>
                   <p className="text-[11px] text-gray-400 font-bold max-w-md mx-auto leading-relaxed font-sans">
-                    لم نجد أي منتجات تطابق عبارة البحث " {adminSearchQuery} " أو الاختيارات المحددة حالياً. بإمكانك تعديل البحث أو الضغط على زر إضافة منتج جديد.
+                    لم نجد أي منتجات تطابق عبارة البحث " {adminSearchQuery} " أو
+                    الاختيارات المحددة حالياً. بإمكانك تعديل البحث أو الضغط على
+                    زر إضافة منتج جديد.
                   </p>
                 </div>
               );
@@ -1501,21 +1779,30 @@ ${itemsBrief}
                     </thead>
                     <tbody className="divide-y divide-gray-100 text-xs text-gray-700">
                       {filtered.map((p) => {
-                        const isLowStock = p.stock !== undefined && p.stock <= 5;
-                        const isOutOfStock = p.stock !== undefined && p.stock <= 0;
+                        const isLowStock =
+                          p.stock !== undefined && p.stock <= 5;
+                        const isOutOfStock =
+                          p.stock !== undefined && p.stock <= 0;
                         return (
-                          <tr key={p.id} className="hover:bg-gray-50/50 transition-colors">
+                          <tr
+                            key={p.id}
+                            className="hover:bg-gray-50/50 transition-colors"
+                          >
                             <td className="p-3 md:p-4">
                               <div className="flex items-center gap-3">
-                                <img 
-                                  src={p.image} 
-                                  alt={p.title} 
+                                <img
+                                  src={p.image}
+                                  alt={p.title}
                                   className="w-10 h-10 rounded-lg object-cover border border-gray-200 bg-gray-50 shadow-2xs"
                                   referrerPolicy="no-referrer"
                                 />
                                 <div className="flex flex-col max-w-[240px] md:max-w-md">
-                                  <span className="font-extrabold text-gray-800 line-clamp-1">{p.title}</span>
-                                  <span className="text-[10px] text-gray-400 mt-0.5 font-bold">المعرف: {p.id}</span>
+                                  <span className="font-extrabold text-gray-800 line-clamp-1">
+                                    {p.title}
+                                  </span>
+                                  <span className="text-[10px] text-gray-400 mt-0.5 font-bold">
+                                    المعرف: {p.id}
+                                  </span>
                                 </div>
                               </div>
                             </td>
@@ -1526,18 +1813,30 @@ ${itemsBrief}
                               {p.price} ج.م
                             </td>
                             <td className="p-3 md:p-4 font-black text-[#00bf63]">
-                              {p.discountPrice ? `${p.discountPrice} ج.م` : <span className="text-gray-400 font-semibold">—</span>}
+                              {p.discountPrice ? (
+                                `${p.discountPrice} ج.م`
+                              ) : (
+                                <span className="text-gray-400 font-semibold">
+                                  —
+                                </span>
+                              )}
                             </td>
                             <td className="p-3 md:p-4">
-                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-black ${
-                                isOutOfStock 
-                                  ? 'bg-red-100 text-red-600 border border-red-200' 
-                                  : isLowStock 
-                                    ? 'bg-amber-100 text-amber-700 border border-amber-200' 
-                                    : 'bg-green-100 text-green-700 border border-green-200'
-                              }`}>
-                                {p.stock !== undefined ? p.stock : 100} قطعة {' '}
-                                {isOutOfStock ? '(نفد)' : isLowStock ? '(حرج)' : ''}
+                              <span
+                                className={`px-2.5 py-1 rounded-full text-[10px] font-black ${
+                                  isOutOfStock
+                                    ? "bg-red-100 text-red-600 border border-red-200"
+                                    : isLowStock
+                                      ? "bg-amber-100 text-amber-700 border border-amber-200"
+                                      : "bg-green-100 text-green-700 border border-green-200"
+                                }`}
+                              >
+                                {p.stock !== undefined ? p.stock : 100} قطعة{" "}
+                                {isOutOfStock
+                                  ? "(نفد)"
+                                  : isLowStock
+                                    ? "(حرج)"
+                                    : ""}
                               </span>
                             </td>
                             <td className="p-3 md:p-4">
@@ -1571,46 +1870,59 @@ ${itemsBrief}
       )}
 
       {/**************** TAB: ORDERS *****************/}
-      {activeTab === 'orders' && (
+      {activeTab === "orders" && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-black text-gray-800">سجل الطلبات الحية المستلمة</h3>
-            <span className="text-xs text-gray-400 font-extrabold">عدد الطلبات المسجلة: {orders.length} طلب</span>
+            <h3 className="text-lg font-black text-gray-800">
+              سجل الطلبات الحية المستلمة
+            </h3>
+            <span className="text-xs text-gray-400 font-extrabold">
+              عدد الطلبات المسجلة: {orders.length} طلب
+            </span>
           </div>
 
           {isOrdersLoading ? (
             <div className="text-center py-16 bg-white border border-gray-150 rounded-2xl shadow-xs">
-              <span className="text-sm text-gray-400 font-black animate-pulse">جاري تحميل كرت الطلبات... 🔄</span>
+              <span className="text-sm text-gray-400 font-black animate-pulse">
+                جاري تحميل كرت الطلبات... 🔄
+              </span>
             </div>
           ) : orders.length === 0 ? (
             <div className="text-center py-14 bg-white border border-gray-150 rounded-2xl shadow-xs p-8">
               <div className="w-14 h-14 bg-gray-50 text-gray-400 rounded-full flex items-center justify-center text-xl mx-auto mb-3">
                 🫙
               </div>
-              <h4 className="text-base font-black text-gray-700">لا يوجد طلبات حتى الأن!</h4>
+              <h4 className="text-base font-black text-gray-700">
+                لا يوجد طلبات حتى الأن!
+              </h4>
               <p className="text-xs text-gray-400 mt-1 max-w-xs mx-auto leading-relaxed">
-                أي منتجات يقوم المشتري بطلبها من السلة سوف تظهر وتقل من حساب المخازن فوراً.
+                أي منتجات يقوم المشتري بطلبها من السلة سوف تظهر وتقل من حساب
+                المخازن فوراً.
               </p>
             </div>
           ) : (
             <div className="space-y-4">
               {orders.map((order) => {
                 return (
-                  <div key={order.orderId} className="bg-white border border-gray-200/80 rounded-2xl p-5 shadow-xs text-right">
-                    
+                  <div
+                    key={order.orderId}
+                    className="bg-white border border-gray-200/80 rounded-2xl p-5 shadow-xs text-right"
+                  >
                     {/* ID and date bar */}
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-gray-100 pb-3 mb-4 text-xs font-black">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-base font-black text-gray-800">رقم الطلب: {order.orderId}</span>
+                        <span className="text-base font-black text-gray-800">
+                          رقم الطلب: {order.orderId}
+                        </span>
                         <span className="bg-[#00bf63]/10 text-[#00bf63] px-2.5 py-0.5 rounded-full text-[10px]">
                           دفع عند الاستلام (COD)
                         </span>
-                        {order.status === 'delivered' ? (
+                        {order.status === "delivered" ? (
                           <span className="bg-green-100 text-green-700 border border-green-200 px-2.5 py-0.5 rounded-full text-[10px] font-black flex items-center gap-1">
                             <span>تم التسليم</span>
                             <span>✅</span>
                           </span>
-                        ) : order.status === 'cancelled' ? (
+                        ) : order.status === "cancelled" ? (
                           <span className="bg-red-100 text-red-700 border border-red-200 px-2.5 py-0.5 rounded-full text-[10px] font-black flex items-center gap-1">
                             <span>تم إلغاء الطلب</span>
                             <span>❌</span>
@@ -1622,52 +1934,77 @@ ${itemsBrief}
                           </span>
                         )}
                       </div>
-                      <span className="text-gray-400 font-bold">{order.date}</span>
+                      <span className="text-gray-400 font-bold">
+                        {order.date}
+                      </span>
                     </div>
 
                     {/* Customer specs details */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4 bg-gray-50/50 p-3.5 rounded-xl border border-gray-200/50 text-xs">
                       <div>
-                        <span className="text-[10px] text-gray-400 font-semibold block">اسم العميل</span>
-                        <span className="font-extrabold text-gray-800 mt-0.5 block">{order.customerInfo.name}</span>
+                        <span className="text-[10px] text-gray-400 font-semibold block">
+                          اسم العميل
+                        </span>
+                        <span className="font-extrabold text-gray-800 mt-0.5 block">
+                          {order.customerInfo.name}
+                        </span>
                       </div>
                       <div>
-                        <span className="text-[10px] text-gray-400 font-semibold block">رقم الهاتف</span>
-                        <a href={`tel:${order.customerInfo.phone}`} className="font-extrabold text-blue-600 hover:underline mt-0.5 block tracking-widest text-left md:text-right">
+                        <span className="text-[10px] text-gray-400 font-semibold block">
+                          رقم الهاتف
+                        </span>
+                        <a
+                          href={`tel:${order.customerInfo.phone}`}
+                          className="font-extrabold text-blue-600 hover:underline mt-0.5 block tracking-widest text-left md:text-right"
+                        >
                           {order.customerInfo.phone} 📞
                         </a>
                       </div>
                       <div>
-                        <span className="text-[10px] text-gray-400 font-semibold block">العنوان والتوصيل</span>
+                        <span className="text-[10px] text-gray-400 font-semibold block">
+                          العنوان والتوصيل
+                        </span>
                         <span className="font-extrabold text-gray-800 mt-0.5 block">
-                          المنطقة: {order.customerInfo.governorate} • المحل: {order.customerInfo.city} • العنوان: {order.customerInfo.address}
+                          المنطقة: {order.customerInfo.governorate} • المحل:{" "}
+                          {order.customerInfo.city} • العنوان:{" "}
+                          {order.customerInfo.address}
                         </span>
                       </div>
                     </div>
 
                     {/* Ordered Items list */}
                     <div className="space-y-2.5 border-b border-gray-100 pb-4 mb-4">
-                      <span className="block text-xs font-black text-gray-800 mb-2">المنتجات المطلوبة في سلة العميل:</span>
+                      <span className="block text-xs font-black text-gray-800 mb-2">
+                        المنتجات المطلوبة في سلة العميل:
+                      </span>
                       {order.items.map((item, idx) => {
-                        const price = item.product.discountPrice || item.product.price;
+                        const price =
+                          item.product.discountPrice || item.product.price;
                         return (
-                          <div key={idx} className="flex items-center justify-between text-xs font-extrabold text-gray-600 py-1">
+                          <div
+                            key={idx}
+                            className="flex items-center justify-between text-xs font-extrabold text-gray-600 py-1"
+                          >
                             <div className="flex items-center gap-3">
-                              <img 
-                                src={item.product.image} 
-                                alt={item.product.title} 
+                              <img
+                                src={item.product.image}
+                                alt={item.product.title}
                                 className="w-8 h-8 rounded-md object-cover border border-gray-200"
                                 referrerPolicy="no-referrer"
                               />
                               <div className="flex flex-col">
-                                <span className="text-gray-800 font-black">{item.product.title}</span>
+                                <span className="text-gray-800 font-black">
+                                  {item.product.title}
+                                </span>
                                 <span className="text-[10px] text-gray-400 mt-0.5 font-semibold">
-                                  سعر القطعة: {price} ج.م | العلامة: {item.product.brand}
+                                  سعر القطعة: {price} ج.م | العلامة:{" "}
+                                  {item.product.brand}
                                 </span>
                               </div>
                             </div>
                             <span className="text-gray-800 font-black text-left">
-                              {item.quantity} × {price} = {item.quantity * price} ج.م
+                              {item.quantity} × {price} ={" "}
+                              {item.quantity * price} ج.م
                             </span>
                           </div>
                         );
@@ -1677,33 +2014,57 @@ ${itemsBrief}
                     {/* Price structure summary */}
                     <div className="flex items-center justify-between text-xs font-bold text-gray-500 font-sans pb-4 border-b border-gray-100/60">
                       <div className="flex gap-4">
-                        <span>قيمة المنتجات: <strong className="text-gray-800">{order.subtotal} ج.م</strong></span>
-                        <span>مصاريف الشحن: <strong className="text-gray-800">{order.shipping} ج.م</strong></span>
+                        <span>
+                          قيمة المنتجات:{" "}
+                          <strong className="text-gray-800">
+                            {order.subtotal} ج.م
+                          </strong>
+                        </span>
+                        <span>
+                          مصاريف الشحن:{" "}
+                          <strong className="text-gray-800">
+                            {order.shipping} ج.م
+                          </strong>
+                        </span>
                       </div>
                       <div className="text-sm md:text-base font-black text-gray-800">
-                        الإجمالي الكلي: <span className="text-[#00bf63] font-serif">{order.total} ج.م</span>
+                        الإجمالي الكلي:{" "}
+                        <span className="text-[#00bf63] font-serif">
+                          {order.total} ج.م
+                        </span>
                       </div>
                     </div>
 
                     {/* Action Buttons panel */}
                     <div className="mt-4 flex flex-wrap gap-2.5 items-center justify-end">
-                      {order.status === 'cancelled' ? (
+                      {order.status === "cancelled" ? (
                         <>
                           <div className="px-3.5 py-2.5 bg-red-100/60 text-red-800 rounded-xl text-[11px] font-black border border-red-200/50 flex items-center gap-1.5 shadow-2xs">
                             <span>الطلب ملغي ومسترجع للمخزن ❌</span>
                           </div>
                           <button
                             onClick={async () => {
-                              if (confirm('هل تريد إعادة هذا الطلب الملغي إلى قيد الانتظار؟ سيتم خصم الكميات من المخزن مرة أخرى.')) {
+                              if (
+                                confirm(
+                                  "هل تريد إعادة هذا الطلب الملغي إلى قيد الانتظار؟ سيتم خصم الكميات من المخزن مرة أخرى.",
+                                )
+                              ) {
                                 try {
                                   try {
-                                    await updateFirestoreOrderStatus((order as any).id || order.orderId, 'pending');
+                                    await updateFirestoreOrderStatus(
+                                      (order as any).id || order.orderId,
+                                      "pending",
+                                    );
                                     fetchOrders(true); // reload silently
                                   } catch (err) {
-                                    alert('خطأ في الاتصال بـ Firestore وتعديل الحالة.');
+                                    alert(
+                                      "خطأ في الاتصال بـ Firestore وتعديل الحالة.",
+                                    );
                                   }
                                 } catch (err) {
-                                  alert('خطأ في الاتصال بالخادم وتعديل الحالة.');
+                                  alert(
+                                    "خطأ في الاتصال بالخادم وتعديل الحالة.",
+                                  );
                                 }
                               }
                             }}
@@ -1714,18 +2075,25 @@ ${itemsBrief}
                         </>
                       ) : (
                         <>
-                          {order.status !== 'delivered' ? (
+                          {order.status !== "delivered" ? (
                             <button
                               onClick={async () => {
                                 try {
                                   try {
-                                    await updateFirestoreOrderStatus((order as any).id || order.orderId, 'delivered');
+                                    await updateFirestoreOrderStatus(
+                                      (order as any).id || order.orderId,
+                                      "delivered",
+                                    );
                                     fetchOrders(true); // reload silently
                                   } catch (err) {
-                                    alert('خطأ في الاتصال بـ Firestore وتعديل الحالة.');
+                                    alert(
+                                      "خطأ في الاتصال بـ Firestore وتعديل الحالة.",
+                                    );
                                   }
                                 } catch (err) {
-                                  alert('خطأ في الاتصال بالخادم وتعديل الحالة.');
+                                  alert(
+                                    "خطأ في الاتصال بالخادم وتعديل الحالة.",
+                                  );
                                 }
                               }}
                               className="px-3.5 py-2.5 bg-green-50 hover:bg-green-100 text-green-700 rounded-xl text-[11px] font-black border border-green-200 shadow-2xs flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
@@ -1739,16 +2107,27 @@ ${itemsBrief}
                               </div>
                               <button
                                 onClick={async () => {
-                                  if (confirm('هل تريد إلغاء حالة التسليم وإعادة هذا الطلب إلى قيد الانتظار؟')) {
+                                  if (
+                                    confirm(
+                                      "هل تريد إلغاء حالة التسليم وإعادة هذا الطلب إلى قيد الانتظار؟",
+                                    )
+                                  ) {
                                     try {
                                       try {
-                                        await updateFirestoreOrderStatus((order as any).id || order.orderId, 'pending');
+                                        await updateFirestoreOrderStatus(
+                                          (order as any).id || order.orderId,
+                                          "pending",
+                                        );
                                         fetchOrders(true); // reload silently
                                       } catch (err) {
-                                        alert('خطأ في الاتصال بـ Firestore وتعديل الحالة.');
+                                        alert(
+                                          "خطأ في الاتصال بـ Firestore وتعديل الحالة.",
+                                        );
                                       }
                                     } catch (err) {
-                                      alert('خطأ في الاتصال بالخادم وتعديل الحالة.');
+                                      alert(
+                                        "خطأ في الاتصال بالخادم وتعديل الحالة.",
+                                      );
                                     }
                                   }
                                 }}
@@ -1762,16 +2141,27 @@ ${itemsBrief}
 
                           <button
                             onClick={async () => {
-                              if (confirm('هل أنت متأكد من إلغاء هذا الطلب؟ سيتم إرجاع جميع كميات منتجاته إلى المخزن تلقائياً.')) {
+                              if (
+                                confirm(
+                                  "هل أنت متأكد من إلغاء هذا الطلب؟ سيتم إرجاع جميع كميات منتجاته إلى المخزن تلقائياً.",
+                                )
+                              ) {
                                 try {
                                   try {
-                                    await updateFirestoreOrderStatus((order as any).id || order.orderId, 'cancelled');
+                                    await updateFirestoreOrderStatus(
+                                      (order as any).id || order.orderId,
+                                      "cancelled",
+                                    );
                                     fetchOrders(true); // reload silently
                                   } catch (err) {
-                                    alert('خطأ في الاتصال بـ Firestore وتعديل الحالة.');
+                                    alert(
+                                      "خطأ في الاتصال بـ Firestore وتعديل الحالة.",
+                                    );
                                   }
                                 } catch (err) {
-                                  alert('خطأ في الاتصال بالخادم وتعديل الحالة.');
+                                  alert(
+                                    "خطأ في الاتصال بالخادم وتعديل الحالة.",
+                                  );
                                 }
                               }
                             }}
@@ -1779,20 +2169,24 @@ ${itemsBrief}
                           >
                             <span>إلغاء الطلب ❌</span>
                           </button>
-
                         </>
                       )}
 
                       <button
                         onClick={async () => {
                           const orderDocumentId = order.id || order.orderId;
-                          if (!confirm('هل أنت متأكد من حذف هذا الطلب نهائياً؟ لا يمكن التراجع عن هذا الإجراء.')) return;
+                          if (
+                            !confirm(
+                              "هل أنت متأكد من حذف هذا الطلب نهائياً؟ لا يمكن التراجع عن هذا الإجراء.",
+                            )
+                          )
+                            return;
                           try {
                             await deleteFirestoreOrder(orderDocumentId);
                             fetchOrders(true);
                             onRefreshData();
                           } catch (err) {
-                            alert('فشل حذف الطلب من Firestore.');
+                            alert("فشل حذف الطلب من Firestore.");
                           }
                         }}
                         className="px-3.5 py-2.5 bg-gray-50 hover:bg-red-100 text-red-600 rounded-xl text-[11px] font-black border border-red-200 shadow-2xs flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
@@ -1840,7 +2234,6 @@ ${itemsBrief}
                         <span>تأكيد واستلام (العميل واتساب) 💬</span>
                       </a>
                     </div>
-
                   </div>
                 );
               })}
@@ -1850,7 +2243,7 @@ ${itemsBrief}
       )}
 
       {/**************** TAB: CATEGORIES *****************/}
-      {activeTab === 'categories' && (
+      {activeTab === "categories" && (
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <h3 className="text-lg font-black text-gray-800 flex items-center gap-2">
@@ -1868,8 +2261,12 @@ ${itemsBrief}
 
           {categories.length === 0 ? (
             <div className="text-center py-16 bg-white border border-gray-150 rounded-2xl shadow-xs space-y-3">
-              <p className="text-sm font-black text-gray-700">لا توجد أقسام مضافة بعد.</p>
-              <p className="text-xs text-gray-400 font-bold">انقر على "إضافة قسم جديد" للبدء.</p>
+              <p className="text-sm font-black text-gray-700">
+                لا توجد أقسام مضافة بعد.
+              </p>
+              <p className="text-xs text-gray-400 font-bold">
+                انقر على "إضافة قسم جديد" للبدء.
+              </p>
             </div>
           ) : (
             <div className="bg-white border border-gray-150 rounded-2xl overflow-hidden shadow-xs">
@@ -1885,21 +2282,32 @@ ${itemsBrief}
                   </thead>
                   <tbody className="divide-y divide-gray-100 text-sm text-gray-700">
                     {categories.map((cat) => {
-                      const productCount = products.filter(p => p.category === cat.id).length;
+                      const productCount = products.filter(
+                        (p) => p.category === cat.id,
+                      ).length;
                       return (
-                        <tr key={cat.id} className="hover:bg-gray-50/50 transition-colors">
+                        <tr
+                          key={cat.id}
+                          className="hover:bg-gray-50/50 transition-colors"
+                        >
                           <td className="p-2">
                             <img
-                              src={cat.image || 'https://res.cloudinary.com/dglhc1pfj/image/upload/v1718817951/tag-placeholder_u5gy9y.png'}
+                              src={
+                                cat.image ||
+                                "https://res.cloudinary.com/dglhc1pfj/image/upload/v1718817951/tag-placeholder_u5gy9y.png"
+                              }
                               alt={cat.name}
                               className="w-12 h-12 object-contain rounded-lg bg-gray-50 border border-gray-100"
                               onError={(e) => {
-                                (e.target as HTMLImageElement).src = 'https://res.cloudinary.com/dglhc1pfj/image/upload/v1718817951/tag-placeholder_u5gy9y.png';
+                                (e.target as HTMLImageElement).src =
+                                  "https://res.cloudinary.com/dglhc1pfj/image/upload/v1718817951/tag-placeholder_u5gy9y.png";
                               }}
                               referrerPolicy="no-referrer"
                             />
                           </td>
-                          <td className="p-4 font-black text-gray-800">{cat.name}</td>
+                          <td className="p-4 font-black text-gray-800">
+                            {cat.name}
+                          </td>
                           <td className="p-4 font-bold">{productCount} منتج</td>
                           <td className="p-4">
                             <div className="flex items-center justify-center gap-2">
@@ -1913,16 +2321,25 @@ ${itemsBrief}
                               <button
                                 onClick={async () => {
                                   if (productCount > 0) {
-                                    alert('لا يمكن حذف هذا القسم لأنه يحتوي على منتجات. يرجى نقل المنتجات إلى قسم آخر أولاً.');
+                                    alert(
+                                      "لا يمكن حذف هذا القسم لأنه يحتوي على منتجات. يرجى نقل المنتجات إلى قسم آخر أولاً.",
+                                    );
                                     return;
                                   }
-                                  if (confirm(`هل أنت متأكد من رغبتك في حذف قسم "${cat.name}"؟ لا يمكن التراجع عن هذا الإجراء.`)) {
+                                  if (
+                                    confirm(
+                                      `هل أنت متأكد من رغبتك في حذف قسم "${cat.name}"؟ لا يمكن التراجع عن هذا الإجراء.`,
+                                    )
+                                  ) {
                                     try {
                                       await deleteFirestoreCategory(cat.id);
-                                      showToast('success', 'تم حذف القسم بنجاح.');
+                                      showToast(
+                                        "success",
+                                        "تم حذف القسم بنجاح.",
+                                      );
                                       onRefreshData();
                                     } catch (err) {
-                                      showToast('error', 'فشل حذف القسم.');
+                                      showToast("error", "فشل حذف القسم.");
                                     }
                                   }
                                 }}
@@ -1945,7 +2362,7 @@ ${itemsBrief}
       )}
 
       {/**************** TAB: INVENTORY *****************/}
-      {activeTab === 'inventory' && (
+      {activeTab === "inventory" && (
         <div className="space-y-6 text-right">
           {/* Main header block */}
           <div className="bg-gradient-to-r from-emerald-600 to-[#00bf63] text-white p-6 rounded-3xl shadow-xs relative overflow-hidden">
@@ -1955,419 +2372,689 @@ ${itemsBrief}
                 <span>إدارة حسابات المخازن والأرباح 📊</span>
               </h3>
               <p className="text-xs text-white/90 font-bold max-w-2xl">
-                هنا يتم احتساب حركة المبيعات والمشتريات والكميات المضافة لكل منتج تلقائياً بناءً على فواتير الشراء والطلبات الفعلية المستلمة.
+                هنا يتم احتساب حركة المبيعات والمشتريات والكميات المضافة لكل
+                منتج تلقائياً بناءً على فواتير الشراء والطلبات الفعلية المستلمة.
               </p>
             </div>
             <div className="absolute top-0 left-0 w-48 h-48 bg-white/10 rounded-full blur-3xl -translate-x-12 -translate-y-12"></div>
           </div>
 
-          {selectedInventoryProduct ? (
-            /* DETAILED PRODUCT LEDGER VIEW */
-            (() => {
-              const p = selectedInventoryProduct;
-              // 1. Get sales entries for this product
-              const pSales: any[] = [];
-              (orders || []).forEach(order => {
-                order.items.forEach(item => {
-                  if (item.product.id === p.id) {
-                    pSales.push({
-                      orderId: order.orderId,
-                      date: order.date,
-                      quantity: item.quantity,
-                      salePrice: item.product.discountPrice || item.product.price,
-                      totalRevenue: item.quantity * (item.product.discountPrice || item.product.price)
-                    });
-                  }
+          {selectedInventoryProduct
+            ? /* DETAILED PRODUCT LEDGER VIEW */
+              (() => {
+                const p = selectedInventoryProduct;
+                // 1. Get sales entries for this product
+                const pSales: any[] = [];
+                (orders || []).forEach((order) => {
+                  order.items.forEach((item) => {
+                    if (item.product.id === p.id) {
+                      pSales.push({
+                        orderId: order.orderId,
+                        date: order.date,
+                        quantity: item.quantity,
+                        salePrice:
+                          item.product.discountPrice || item.product.price,
+                        totalRevenue:
+                          item.quantity *
+                          (item.product.discountPrice || item.product.price),
+                      });
+                    }
+                  });
                 });
-              });
 
-              // 2. Get purchase entries for this product (with fallback)
-              const pPurchases = p.purchaseHistory && p.purchaseHistory.length > 0 
-                ? p.purchaseHistory 
-                : (() => {
-                    const soldQty = pSales.reduce((sum, s) => sum + s.quantity, 0);
-                    const initialQty = (p.stock !== undefined ? p.stock : 100) + soldQty;
-                    const pPrice = p.purchasePrice || p.price * 0.7;
-                    return [{
-                      id: 'initial',
-                      date: 'تاريخ التأسيس (رصيد أول المدة)',
-                      quantity: initialQty,
-                      purchasePrice: pPrice,
-                      totalCost: initialQty * pPrice
-                    }];
-                  })();
+                // 2. Get purchase entries for this product (with fallback)
+                const pPurchases =
+                  p.purchaseHistory && p.purchaseHistory.length > 0
+                    ? p.purchaseHistory
+                    : (() => {
+                        const soldQty = pSales.reduce(
+                          (sum, s) => sum + s.quantity,
+                          0,
+                        );
+                        const initialQty =
+                          (p.stock !== undefined ? p.stock : 100) + soldQty;
+                        const pPrice = p.purchasePrice || p.price * 0.7;
+                        return [
+                          {
+                            id: "initial",
+                            date: "تاريخ التأسيس (رصيد أول المدة)",
+                            quantity: initialQty,
+                            purchasePrice: pPrice,
+                            totalCost: initialQty * pPrice,
+                          },
+                        ];
+                      })();
 
-              // 3. Financial calculations
-              const totalPurchasedQty = pPurchases.reduce((sum, r) => sum + r.quantity, 0);
-              const totalPurchasedCost = pPurchases.reduce((sum, r) => sum + r.totalCost, 0);
-              
-              const totalSoldQty = pSales.reduce((sum, s) => sum + s.quantity, 0);
-              const totalSoldRevenue = pSales.reduce((sum, s) => sum + s.totalRevenue, 0);
+                // 3. Financial calculations
+                const totalPurchasedQty = pPurchases.reduce(
+                  (sum, r) => sum + r.quantity,
+                  0,
+                );
+                const totalPurchasedCost = pPurchases.reduce(
+                  (sum, r) => sum + r.totalCost,
+                  0,
+                );
 
-              // COGS based on average cost of batches
-              const avgPurchaseUnitCost = totalPurchasedQty > 0 ? (totalPurchasedCost / totalPurchasedQty) : (p.purchasePrice || p.price * 0.7);
-              const costOfGoodsSold = totalSoldQty * avgPurchaseUnitCost;
-              const productNetProfit = totalSoldRevenue - costOfGoodsSold;
+                const totalSoldQty = pSales.reduce(
+                  (sum, s) => sum + s.quantity,
+                  0,
+                );
+                const totalSoldRevenue = pSales.reduce(
+                  (sum, s) => sum + s.totalRevenue,
+                  0,
+                );
 
-              return (
-                <div className="space-y-6">
-                  <div className="flex justify-between items-center flex-wrap gap-3">
-                    <button
-                      onClick={() => setSelectedInventoryProduct(null)}
-                      className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-black cursor-pointer transition-all flex items-center gap-1.5"
-                    >
-                      <span>← العودة لجدول المخزون العام</span>
-                    </button>
-                    <h4 className="text-sm font-black text-gray-400">سجل المعاملات والربحية التفصيلية للمنتج</h4>
-                  </div>
+                // COGS based on average cost of batches
+                const avgPurchaseUnitCost =
+                  totalPurchasedQty > 0
+                    ? totalPurchasedCost / totalPurchasedQty
+                    : p.purchasePrice || p.price * 0.7;
+                const costOfGoodsSold = totalSoldQty * avgPurchaseUnitCost;
+                const productNetProfit = totalSoldRevenue - costOfGoodsSold;
 
-                  {/* Product Info Card */}
-                  <div className="bg-white border border-gray-150 p-5 rounded-2xl shadow-xs grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
-                    <div className="flex items-center gap-3 col-span-1 md:col-span-2">
-                      <img src={p.image} alt={p.title} className="w-16 h-16 rounded-xl object-contain border border-gray-100 bg-gray-50 p-1" />
-                      <div>
-                        <h4 className="text-sm font-black text-gray-800 leading-tight">{p.title}</h4>
-                        <p className="text-[11px] text-gray-400 font-bold mt-1 flex items-center gap-1.5">
-                          <span>الماركة: <strong className="text-gray-600">{p.brand}</strong></span>
-                          <span>•</span>
-                          <span>القسم: <strong className="text-gray-600">{(categories || []).find(c => c.id === p.category)?.name || p.category}</strong></span>
-                        </p>
-                        {p.barcode && (
-                          <div className="text-[10px] text-gray-500 font-mono mt-1.5 bg-gray-50 px-2 py-0.5 rounded-md inline-block border border-gray-100">
-                            Barcode: {p.barcode}
-                          </div>
-                        )}
+                return (
+                  <div className="space-y-6">
+                    <div className="flex justify-between items-center flex-wrap gap-3">
+                      <button
+                        onClick={() => setSelectedInventoryProduct(null)}
+                        className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-black cursor-pointer transition-all flex items-center gap-1.5"
+                      >
+                        <span>← العودة لجدول المخزون العام</span>
+                      </button>
+                      <h4 className="text-sm font-black text-gray-400">
+                        سجل المعاملات والربحية التفصيلية للمنتج
+                      </h4>
+                    </div>
+
+                    {/* Product Info Card */}
+                    <div className="bg-white border border-gray-150 p-5 rounded-2xl shadow-xs grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
+                      <div className="flex items-center gap-3 col-span-1 md:col-span-2">
+                        <img
+                          src={p.image}
+                          alt={p.title}
+                          className="w-16 h-16 rounded-xl object-contain border border-gray-100 bg-gray-50 p-1"
+                        />
+                        <div>
+                          <h4 className="text-sm font-black text-gray-800 leading-tight">
+                            {p.title}
+                          </h4>
+                          <p className="text-[11px] text-gray-400 font-bold mt-1 flex items-center gap-1.5">
+                            <span>
+                              الماركة:{" "}
+                              <strong className="text-gray-600">
+                                {p.brand}
+                              </strong>
+                            </span>
+                            <span>•</span>
+                            <span>
+                              القسم:{" "}
+                              <strong className="text-gray-600">
+                                {(categories || []).find(
+                                  (c) => c.id === p.category,
+                                )?.name || p.category}
+                              </strong>
+                            </span>
+                          </p>
+                          {p.barcode && (
+                            <div className="text-[10px] text-gray-500 font-mono mt-1.5 bg-gray-50 px-2 py-0.5 rounded-md inline-block border border-gray-100">
+                              Barcode: {p.barcode}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <div className="bg-emerald-50/50 p-3 rounded-xl border border-emerald-100 text-center">
-                      <span className="block text-[10px] text-emerald-700 font-black mb-1">الكمية المتبقية بالمخزن 📦</span>
-                      <strong className="text-base text-emerald-600 font-black">{p.stock ?? 0} قطعة</strong>
-                    </div>
-                    <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-100 text-center">
-                      <span className="block text-[10px] text-amber-700 font-black mb-1">إجمالي المبيعات المحققة 🛒</span>
-                      <strong className="text-base text-amber-600 font-black">{totalSoldQty} قطعة مباعة</strong>
-                    </div>
-                  </div>
-
-                  {/* Financial Stats Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="bg-blue-50/40 border border-blue-100 p-4 rounded-2xl">
-                      <span className="block text-[11px] text-blue-700 font-bold mb-1">إجمالي تكلفة المشتريات 💸</span>
-                      <strong className="text-lg font-black text-blue-800">{totalPurchasedCost.toLocaleString('ar-EG')} ج.م</strong>
-                      <span className="block text-[10px] text-blue-500 font-semibold mt-1">تضم {totalPurchasedQty} قطعة مضافة</span>
-                    </div>
-
-                    <div className="bg-amber-50/40 border border-amber-100 p-4 rounded-2xl">
-                      <span className="block text-[11px] text-amber-700 font-bold mb-1">إجمالي مبالغ البيع (الإيراد) 💵</span>
-                      <strong className="text-lg font-black text-amber-800">{totalSoldRevenue.toLocaleString('ar-EG')} ج.م</strong>
-                      <span className="block text-[10px] text-amber-500 font-semibold mt-1">تضم {totalSoldQty} قطعة مباعة</span>
-                    </div>
-
-                    <div className="bg-red-50/40 border border-red-100 p-4 rounded-2xl">
-                      <span className="block text-[11px] text-red-700 font-bold mb-1">تكلفة البضاعة المباعة (COGS) 📉</span>
-                      <strong className="text-lg font-black text-red-800">{costOfGoodsSold.toLocaleString('ar-EG')} ج.م</strong>
-                      <span className="block text-[10px] text-red-500 font-semibold mt-1">متوسط تكلفة القطعة: {avgPurchaseUnitCost.toFixed(1)} ج.م</span>
-                    </div>
-
-                    <div className="bg-[#00bf63]/10 border border-[#00bf63]/25 p-4 rounded-2xl">
-                      <span className="block text-[11px] text-[#00bf63] font-bold mb-1">صافي أرباح المنتج (المكسب) 📈</span>
-                      <strong className="text-lg font-black text-[#1a9a46]">{productNetProfit.toLocaleString('ar-EG')} ج.م</strong>
-                      <span className="block text-[10px] text-emerald-600 font-semibold mt-1">هامش الربح: {totalSoldRevenue > 0 ? ((productNetProfit / totalSoldRevenue) * 100).toFixed(1) : 0}%</span>
-                    </div>
-                  </div>
-
-                  {/* Left and Right Tables */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* PURCHASES TABLE */}
-                    <div className="bg-white border border-gray-150 rounded-2xl shadow-xs overflow-hidden">
-                      <div className="bg-gray-50 px-4 py-3.5 border-b border-gray-100 flex items-center justify-between">
-                        <h5 className="text-xs font-black text-gray-700">📋 سجل المشتريات والكميات المضافة (المخزون)</h5>
-                        <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[10px] font-bold">بين البيانات</span>
+                      <div className="bg-emerald-50/50 p-3 rounded-xl border border-emerald-100 text-center">
+                        <span className="block text-[10px] text-emerald-700 font-black mb-1">
+                          الكمية المتبقية بالمخزن 📦
+                        </span>
+                        <strong className="text-base text-emerald-600 font-black">
+                          {p.stock ?? 0} قطعة
+                        </strong>
                       </div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-xs text-right">
-                          <thead className="bg-gray-50/50 text-[11px] text-gray-500 border-b border-gray-100">
-                            <tr>
-                              <th className="px-4 py-3 font-bold">التاريخ</th>
-                              <th className="px-4 py-3 font-bold text-center">الكمية المضافة</th>
-                              <th className="px-4 py-3 font-bold text-left">سعر شراء الوحدة</th>
-                              <th className="px-4 py-3 font-bold text-left">إجمالي التكلفة</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-100">
-                            {pPurchases.map((rec, idx) => (
-                              <tr key={rec.id || idx} className="hover:bg-gray-50/50">
-                                <td className="px-4 py-3 font-bold text-gray-600">{rec.date}</td>
-                                <td className="px-4 py-3 font-black text-center text-blue-600">+{rec.quantity} قطعة</td>
-                                <td className="px-4 py-3 font-mono text-left text-gray-500">{Number(rec.purchasePrice).toFixed(1)} ج.م</td>
-                                <td className="px-4 py-3 font-black text-left text-gray-700">{Number(rec.totalCost).toLocaleString('ar-EG')} ج.م</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                      <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-100 text-center">
+                        <span className="block text-[10px] text-amber-700 font-black mb-1">
+                          إجمالي المبيعات المحققة 🛒
+                        </span>
+                        <strong className="text-base text-amber-600 font-black">
+                          {totalSoldQty} قطعة مباعة
+                        </strong>
                       </div>
                     </div>
 
-                    {/* SALES TABLE */}
-                    <div className="bg-white border border-gray-150 rounded-2xl shadow-xs overflow-hidden">
-                      <div className="bg-gray-50 px-4 py-3.5 border-b border-gray-100 flex items-center justify-between">
-                        <h5 className="text-xs font-black text-gray-700">🛒 سجل المبيعات والعمليات المسجلة</h5>
-                        <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-bold">من الطلبات</span>
+                    {/* Financial Stats Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div className="bg-blue-50/40 border border-blue-100 p-4 rounded-2xl">
+                        <span className="block text-[11px] text-blue-700 font-bold mb-1">
+                          إجمالي تكلفة المشتريات 💸
+                        </span>
+                        <strong className="text-lg font-black text-blue-800">
+                          {totalPurchasedCost.toLocaleString("ar-EG")} ج.م
+                        </strong>
+                        <span className="block text-[10px] text-blue-500 font-semibold mt-1">
+                          تضم {totalPurchasedQty} قطعة مضافة
+                        </span>
                       </div>
-                      <div className="overflow-x-auto">
-                        {pSales.length === 0 ? (
-                          <div className="p-8 text-center text-gray-400 font-bold">
-                            لا توجد أي مبيعات مسجلة لهذا المنتج حتى الآن.
-                          </div>
-                        ) : (
+
+                      <div className="bg-amber-50/40 border border-amber-100 p-4 rounded-2xl">
+                        <span className="block text-[11px] text-amber-700 font-bold mb-1">
+                          إجمالي مبالغ البيع (الإيراد) 💵
+                        </span>
+                        <strong className="text-lg font-black text-amber-800">
+                          {totalSoldRevenue.toLocaleString("ar-EG")} ج.م
+                        </strong>
+                        <span className="block text-[10px] text-amber-500 font-semibold mt-1">
+                          تضم {totalSoldQty} قطعة مباعة
+                        </span>
+                      </div>
+
+                      <div className="bg-red-50/40 border border-red-100 p-4 rounded-2xl">
+                        <span className="block text-[11px] text-red-700 font-bold mb-1">
+                          تكلفة البضاعة المباعة (COGS) 📉
+                        </span>
+                        <strong className="text-lg font-black text-red-800">
+                          {costOfGoodsSold.toLocaleString("ar-EG")} ج.م
+                        </strong>
+                        <span className="block text-[10px] text-red-500 font-semibold mt-1">
+                          متوسط تكلفة القطعة: {avgPurchaseUnitCost.toFixed(1)}{" "}
+                          ج.م
+                        </span>
+                      </div>
+
+                      <div className="bg-[#00bf63]/10 border border-[#00bf63]/25 p-4 rounded-2xl">
+                        <span className="block text-[11px] text-[#00bf63] font-bold mb-1">
+                          صافي أرباح المنتج (المكسب) 📈
+                        </span>
+                        <strong className="text-lg font-black text-[#1a9a46]">
+                          {productNetProfit.toLocaleString("ar-EG")} ج.م
+                        </strong>
+                        <span className="block text-[10px] text-emerald-600 font-semibold mt-1">
+                          هامش الربح:{" "}
+                          {totalSoldRevenue > 0
+                            ? (
+                                (productNetProfit / totalSoldRevenue) *
+                                100
+                              ).toFixed(1)
+                            : 0}
+                          %
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Left and Right Tables */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {/* PURCHASES TABLE */}
+                      <div className="bg-white border border-gray-150 rounded-2xl shadow-xs overflow-hidden">
+                        <div className="bg-gray-50 px-4 py-3.5 border-b border-gray-100 flex items-center justify-between">
+                          <h5 className="text-xs font-black text-gray-700">
+                            📋 سجل المشتريات والكميات المضافة (المخزون)
+                          </h5>
+                          <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[10px] font-bold">
+                            بين البيانات
+                          </span>
+                        </div>
+                        <div className="overflow-x-auto">
                           <table className="w-full text-xs text-right">
                             <thead className="bg-gray-50/50 text-[11px] text-gray-500 border-b border-gray-100">
                               <tr>
-                                <th className="px-4 py-3 font-bold">رقم الطلب / التاريخ</th>
-                                <th className="px-4 py-3 font-bold text-center">الكمية المباعة</th>
-                                <th className="px-4 py-3 font-bold text-left">سعر البيع</th>
-                                <th className="px-4 py-3 font-bold text-left">إجمالي الإيراد</th>
+                                <th className="px-4 py-3 font-bold">التاريخ</th>
+                                <th className="px-4 py-3 font-bold text-center">
+                                  الكمية المضافة
+                                </th>
+                                <th className="px-4 py-3 font-bold text-left">
+                                  سعر شراء الوحدة
+                                </th>
+                                <th className="px-4 py-3 font-bold text-left">
+                                  إجمالي التكلفة
+                                </th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
-                              {pSales.map((sale, idx) => (
-                                <tr key={idx} className="hover:bg-gray-50/50">
-                                  <td className="px-4 py-3">
-                                    <span className="block font-black text-emerald-600">{sale.orderId}</span>
-                                    <span className="block text-[10px] text-gray-400 mt-0.5">{sale.date}</span>
+                              {pPurchases.map((rec, idx) => (
+                                <tr
+                                  key={rec.id || idx}
+                                  className="hover:bg-gray-50/50"
+                                >
+                                  <td className="px-4 py-3 font-bold text-gray-600">
+                                    {rec.date}
                                   </td>
-                                  <td className="px-4 py-3 font-black text-center text-amber-600">-{sale.quantity} قطعة</td>
-                                  <td className="px-4 py-3 font-mono text-left text-gray-500">{Number(sale.salePrice).toFixed(1)} ج.م</td>
-                                  <td className="px-4 py-3 font-black text-left text-gray-700">{Number(sale.totalRevenue).toLocaleString('ar-EG')} ج.م</td>
+                                  <td className="px-4 py-3 font-black text-center text-blue-600">
+                                    +{rec.quantity} قطعة
+                                  </td>
+                                  <td className="px-4 py-3 font-mono text-left text-gray-500">
+                                    {Number(rec.purchasePrice).toFixed(1)} ج.م
+                                  </td>
+                                  <td className="px-4 py-3 font-black text-left text-gray-700">
+                                    {Number(rec.totalCost).toLocaleString(
+                                      "ar-EG",
+                                    )}{" "}
+                                    ج.م
+                                  </td>
                                 </tr>
                               ))}
                             </tbody>
                           </table>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()
-          ) : (
-            /* GENERAL WAREHOUSE OVERVIEW */
-            (() => {
-              // 1. Pre-calculate dynamic sales histories for all products
-              const dynamicSalesMap: { [productId: string]: any[] } = {};
-              (orders || []).forEach(order => {
-                order.items.forEach(item => {
-                  if (!item.product) return;
-                  const pId = item.product.id;
-                  if (!dynamicSalesMap[pId]) {
-                    dynamicSalesMap[pId] = [];
-                  }
-                  dynamicSalesMap[pId].push({
-                    quantity: item.quantity,
-                    salePrice: item.product.discountPrice || item.product.price,
-                    totalRevenue: item.quantity * (item.product.discountPrice || item.product.price)
-                  });
-                });
-              });
-
-              // 2. Compute dynamic financial values for each product
-              const compiledInventory = (products || []).map(p => {
-                const sales = dynamicSalesMap[p.id] || [];
-                const totalSold = sales.reduce((sum, s) => sum + s.quantity, 0);
-                const totalRevenue = sales.reduce((sum, s) => sum + s.totalRevenue, 0);
-
-                const pPurchases: PurchaseRecord[] = p.purchaseHistory && p.purchaseHistory.length > 0
-                  ? p.purchaseHistory
-                  : [{
-                      id: 'initial',
-                      date: 'تاريخ التأسيس (رصيد أول المدة)',
-                      quantity: (p.stock ?? 0) + totalSold,
-                      purchasePrice: p.purchasePrice || p.price * 0.7,
-                      totalCost: ((p.stock ?? 0) + totalSold) * (p.purchasePrice || p.price * 0.7)
-                    }];
-
-                const totalPurchasedQty = pPurchases.reduce((sum: number, r) => sum + r.quantity, 0);
-                const totalPurchasedCost = pPurchases.reduce((sum: number, r) => sum + r.totalCost, 0);
-
-                const avgPurchaseUnitCost = totalPurchasedQty > 0 ? (totalPurchasedCost / totalPurchasedQty) : (p.purchasePrice || p.price * 0.7);
-                const cogs = totalSold * avgPurchaseUnitCost;
-                const netProfit = totalRevenue - cogs;
-                const currentStockValue = (p.stock ?? 0) * avgPurchaseUnitCost;
-
-                return {
-                  product: p,
-                  totalSold,
-                  totalRevenue,
-                  totalPurchasedCost,
-                  totalPurchasedQty,
-                  cogs,
-                  netProfit,
-                  currentStockValue,
-                  avgPurchaseUnitCost
-                };
-              });
-
-              // Grand totals
-              const grandTotalStockValue = compiledInventory.reduce((sum: number, item) => sum + item.currentStockValue, 0);
-              const grandTotalPurchases = compiledInventory.reduce((sum: number, item) => sum + item.totalPurchasedCost, 0);
-              const grandTotalRevenue = compiledInventory.reduce((sum: number, item) => sum + item.totalRevenue, 0);
-              const grandTotalProfit = compiledInventory.reduce((sum: number, item) => sum + item.netProfit, 0);
-
-              // Group products by category
-              const groupedByCategory: { [catId: string]: typeof compiledInventory } = {};
-                (categories || []).forEach(cat => {
-                groupedByCategory[cat.id] = [];
-              });
-
-              compiledInventory.forEach(item => {
-                const catId = item.product.category;
-                if (!groupedByCategory[catId]) {
-                  groupedByCategory[catId] = [];
-                }
-                groupedByCategory[catId].push(item);
-              });
-
-              return (
-                <div className="space-y-6">
-                  {/* Financial Stats Summary Cards */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="bg-emerald-50 border border-emerald-150 p-4 rounded-2xl relative overflow-hidden">
-                      <span className="block text-xs font-black text-emerald-700 mb-1">📦 قيمة البضاعة الحالية بالمخزن</span>
-                      <strong className="text-xl font-black text-emerald-800">{grandTotalStockValue.toLocaleString('ar-EG')} ج.م</strong>
-                      <span className="block text-[10px] text-emerald-500 font-semibold mt-1">تضم {products.reduce((sum, p) => sum + (p.stock ?? 0), 0)} قطعة متبقية</span>
-                    </div>
-
-                    <div className="bg-blue-50 border border-blue-150 p-4 rounded-2xl relative overflow-hidden">
-                      <span className="block text-xs font-black text-blue-700 mb-1">💸 إجمالي رأس مال المشتريات الكلي</span>
-                      <strong className="text-xl font-black text-blue-800">{grandTotalPurchases.toLocaleString('ar-EG')} ج.م</strong>
-                      <span className="block text-[10px] text-blue-500 font-semibold mt-1">قيمة المشتريات التاريخية الكلية</span>
-                    </div>
-
-                    <div className="bg-amber-50 border border-amber-150 p-4 rounded-2xl relative overflow-hidden">
-                      <span className="block text-xs font-black text-amber-700 mb-1">💵 إجمالي الإيرادات المحققة فعلياً</span>
-                      <strong className="text-xl font-black text-amber-800">{grandTotalRevenue.toLocaleString('ar-EG')} ج.م</strong>
-                      <span className="block text-[10px] text-amber-500 font-semibold mt-1">قيمة المبيعات المستلمة للطلبات</span>
-                    </div>
-
-                    <div className="bg-[#00bf63]/10 border border-[#00bf63]/25 p-4 rounded-2xl relative overflow-hidden">
-                      <span className="block text-xs font-black text-[#1a9a46] mb-1">📈 صافي الأرباح المحققة (المكسب الكلي)</span>
-                      <strong className="text-xl font-black text-[#1a9a46]">{grandTotalProfit.toLocaleString('ar-EG')} ج.م</strong>
-                      <span className="block text-[10px] text-emerald-600 font-semibold mt-1">فارق البيع عن سعر التكلفة الفعلي</span>
-                    </div>
-                  </div>
-
-                  {/* Render Categories and tables */}
-                  {(categories || []).map(cat => {
-                    const catItems = groupedByCategory[cat.id] || [];
-                    if (catItems.length === 0) return null;
-
-                    const catStockCount = catItems.reduce((sum, item) => sum + (item.product.stock ?? 0), 0);
-                    const catSoldQty = catItems.reduce((sum, item) => sum + item.totalSold, 0);
-
-                    return (
-                      <div key={cat.id} className="bg-white border border-gray-150 rounded-2xl shadow-xs overflow-hidden">
-                        <div className="bg-gray-50/80 px-4 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-lg">{cat.icon}</span>
-                            <h4 className="text-xs md:text-sm font-black text-gray-800">{cat.name}</h4>
-                            <span className="bg-gray-200/60 text-gray-600 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                              {catItems.length} منتج
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-3 text-[11px] font-bold text-gray-500">
-                            <span>المتبقي بالمخزن: <strong className="text-emerald-600">{catStockCount} قطعة</strong></span>
-                            <span>•</span>
-                            <span>المباع: <strong className="text-amber-600">{catSoldQty} قطعة</strong></span>
-                          </div>
                         </div>
+                      </div>
 
+                      {/* SALES TABLE */}
+                      <div className="bg-white border border-gray-150 rounded-2xl shadow-xs overflow-hidden">
+                        <div className="bg-gray-50 px-4 py-3.5 border-b border-gray-100 flex items-center justify-between">
+                          <h5 className="text-xs font-black text-gray-700">
+                            🛒 سجل المبيعات والعمليات المسجلة
+                          </h5>
+                          <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-bold">
+                            من الطلبات
+                          </span>
+                        </div>
                         <div className="overflow-x-auto">
-                          <table className="w-full text-xs text-right border-collapse">
-                            <thead className="bg-gray-50 text-[11px] text-gray-500 border-b border-gray-100">
-                              <tr>
-                                <th className="px-4 py-3 font-bold">اسم المنتج والماركة</th>
-                                <th className="px-4 py-3 font-bold text-left">سعر شراء الوحدة</th>
-                                <th className="px-4 py-3 font-bold text-center">إجمالي الكمية المضافة 📥</th>
-                                <th className="px-4 py-3 font-bold text-center">إجمالي المباع 📤</th>
-                                <th className="px-4 py-3 font-bold text-center">المتبقي بالمخزن 📦</th>
-                                <th className="px-4 py-3 font-bold text-left">قيمة المخزون الحالي</th>
-                                <th className="px-4 py-3 font-bold text-left">إجمالي قيمة البيع</th>
-                                <th className="px-4 py-3 font-bold text-left">صافي المكسب</th>
-                                <th className="px-4 py-3 font-bold text-center">سجل الحسابات</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                              {catItems.map(item => {
-                                const p = item.product;
-                                return (
-                                  <tr key={p.id} className="hover:bg-gray-50/40 transition-all">
+                          {pSales.length === 0 ? (
+                            <div className="p-8 text-center text-gray-400 font-bold">
+                              لا توجد أي مبيعات مسجلة لهذا المنتج حتى الآن.
+                            </div>
+                          ) : (
+                            <table className="w-full text-xs text-right">
+                              <thead className="bg-gray-50/50 text-[11px] text-gray-500 border-b border-gray-100">
+                                <tr>
+                                  <th className="px-4 py-3 font-bold">
+                                    رقم الطلب / التاريخ
+                                  </th>
+                                  <th className="px-4 py-3 font-bold text-center">
+                                    الكمية المباعة
+                                  </th>
+                                  <th className="px-4 py-3 font-bold text-left">
+                                    سعر البيع
+                                  </th>
+                                  <th className="px-4 py-3 font-bold text-left">
+                                    إجمالي الإيراد
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-100">
+                                {pSales.map((sale, idx) => (
+                                  <tr key={idx} className="hover:bg-gray-50/50">
                                     <td className="px-4 py-3">
-                                      <div className="flex items-center gap-2.5">
-                                        <img src={p.image} alt={p.title} className="w-10 h-10 rounded-lg object-contain bg-gray-50 border border-gray-100 p-0.5" />
-                                        <div>
-                                          <span className="block font-black text-gray-800 leading-tight">{p.title}</span>
-                                          <span className="block text-[10px] text-gray-400 font-bold mt-0.5">{p.brand}</span>
-                                        </div>
-                                      </div>
-                                    </td>
-                                    <td className="px-4 py-3 font-mono text-left text-gray-600">
-                                      {item.avgPurchaseUnitCost.toFixed(1)} ج.م
-                                    </td>
-                                    <td className="px-4 py-3 text-center font-black text-xs text-blue-600">
-                                      {item.totalPurchasedQty} قطعة
-                                    </td>
-                                    <td className="px-4 py-3 text-center font-bold text-amber-600">
-                                      {item.totalSold} قطعة
-                                    </td>
-                                    <td className="px-4 py-3 text-center">
-                                      <span className={`inline-block px-2 py-0.5 rounded font-black text-xs ${
-                                        (p.stock ?? 0) === 0 ? 'bg-red-50 text-red-600 animate-pulse' : 'text-gray-700'
-                                      }`}>
-                                        {p.stock ?? 0} قطعة
+                                      <span className="block font-black text-emerald-600">
+                                        {sale.orderId}
+                                      </span>
+                                      <span className="block text-[10px] text-gray-400 mt-0.5">
+                                        {sale.date}
                                       </span>
                                     </td>
-                                    <td className="px-4 py-3 font-black text-left text-gray-600">
-                                      {item.currentStockValue.toLocaleString('ar-EG')} ج.م
+                                    <td className="px-4 py-3 font-black text-center text-amber-600">
+                                      -{sale.quantity} قطعة
                                     </td>
-                                    <td className="px-4 py-3 font-black text-left text-indigo-600">
-                                      {item.totalRevenue.toLocaleString('ar-EG')} ج.م
+                                    <td className="px-4 py-3 font-mono text-left text-gray-500">
+                                      {Number(sale.salePrice).toFixed(1)} ج.م
                                     </td>
-                                    <td className={`px-4 py-3 font-black text-left ${
-                                      item.netProfit > 0 ? 'text-[#1a9a46]' : 'text-gray-500'
-                                    }`}>
-                                      {item.netProfit > 0 ? `+${item.netProfit.toLocaleString('ar-EG')}` : '0'} ج.م
-                                    </td>
-                                    <td className="px-4 py-3 text-center">
-                                      <button
-                                        onClick={() => setSelectedInventoryProduct(p)}
-                                        className="px-3 py-1.5 bg-gray-100 hover:bg-[#00bf63] hover:text-white text-gray-700 rounded-lg text-[10px] font-black cursor-pointer transition-all active:scale-95 flex items-center gap-1 mx-auto"
-                                      >
-                                        <span>عرض السجل التفصيلي 📜</span>
-                                      </button>
+                                    <td className="px-4 py-3 font-black text-left text-gray-700">
+                                      {Number(sale.totalRevenue).toLocaleString(
+                                        "ar-EG",
+                                      )}{" "}
+                                      ج.م
                                     </td>
                                   </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              );
-            })()
-          )}
+                    </div>
+                  </div>
+                );
+              })()
+            : /* GENERAL WAREHOUSE OVERVIEW */
+              (() => {
+                // 1. Pre-calculate dynamic sales histories for all products
+                const dynamicSalesMap: { [productId: string]: any[] } = {};
+                (orders || []).forEach((order) => {
+                  order.items.forEach((item) => {
+                    if (!item.product) return;
+                    const pId = item.product.id;
+                    if (!dynamicSalesMap[pId]) {
+                      dynamicSalesMap[pId] = [];
+                    }
+                    dynamicSalesMap[pId].push({
+                      quantity: item.quantity,
+                      salePrice:
+                        item.product.discountPrice || item.product.price,
+                      totalRevenue:
+                        item.quantity *
+                        (item.product.discountPrice || item.product.price),
+                    });
+                  });
+                });
+
+                // 2. Compute dynamic financial values for each product
+                const compiledInventory = (products || []).map((p) => {
+                  const sales = dynamicSalesMap[p.id] || [];
+                  const totalSold = sales.reduce(
+                    (sum, s) => sum + s.quantity,
+                    0,
+                  );
+                  const totalRevenue = sales.reduce(
+                    (sum, s) => sum + s.totalRevenue,
+                    0,
+                  );
+
+                  const pPurchases: PurchaseRecord[] =
+                    p.purchaseHistory && p.purchaseHistory.length > 0
+                      ? p.purchaseHistory
+                      : [
+                          {
+                            id: "initial",
+                            date: "تاريخ التأسيس (رصيد أول المدة)",
+                            quantity: (p.stock ?? 0) + totalSold,
+                            purchasePrice: p.purchasePrice || p.price * 0.7,
+                            totalCost:
+                              ((p.stock ?? 0) + totalSold) *
+                              (p.purchasePrice || p.price * 0.7),
+                          },
+                        ];
+
+                  const totalPurchasedQty = pPurchases.reduce(
+                    (sum: number, r) => sum + r.quantity,
+                    0,
+                  );
+                  const totalPurchasedCost = pPurchases.reduce(
+                    (sum: number, r) => sum + r.totalCost,
+                    0,
+                  );
+
+                  const avgPurchaseUnitCost =
+                    totalPurchasedQty > 0
+                      ? totalPurchasedCost / totalPurchasedQty
+                      : p.purchasePrice || p.price * 0.7;
+                  const cogs = totalSold * avgPurchaseUnitCost;
+                  const netProfit = totalRevenue - cogs;
+                  const currentStockValue =
+                    (p.stock ?? 0) * avgPurchaseUnitCost;
+
+                  return {
+                    product: p,
+                    totalSold,
+                    totalRevenue,
+                    totalPurchasedCost,
+                    totalPurchasedQty,
+                    cogs,
+                    netProfit,
+                    currentStockValue,
+                    avgPurchaseUnitCost,
+                  };
+                });
+
+                // Grand totals
+                const grandTotalStockValue = compiledInventory.reduce(
+                  (sum: number, item) => sum + item.currentStockValue,
+                  0,
+                );
+                const grandTotalPurchases = compiledInventory.reduce(
+                  (sum: number, item) => sum + item.totalPurchasedCost,
+                  0,
+                );
+                const grandTotalRevenue = compiledInventory.reduce(
+                  (sum: number, item) => sum + item.totalRevenue,
+                  0,
+                );
+                const grandTotalProfit = compiledInventory.reduce(
+                  (sum: number, item) => sum + item.netProfit,
+                  0,
+                );
+
+                // Group products by category
+                const groupedByCategory: {
+                  [catId: string]: typeof compiledInventory;
+                } = {};
+                (categories || []).forEach((cat) => {
+                  groupedByCategory[cat.id] = [];
+                });
+
+                compiledInventory.forEach((item) => {
+                  const catId = item.product.category;
+                  if (!groupedByCategory[catId]) {
+                    groupedByCategory[catId] = [];
+                  }
+                  groupedByCategory[catId].push(item);
+                });
+
+                return (
+                  <div className="space-y-6">
+                    {/* Financial Stats Summary Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div className="bg-emerald-50 border border-emerald-150 p-4 rounded-2xl relative overflow-hidden">
+                        <span className="block text-xs font-black text-emerald-700 mb-1">
+                          📦 قيمة البضاعة الحالية بالمخزن
+                        </span>
+                        <strong className="text-xl font-black text-emerald-800">
+                          {grandTotalStockValue.toLocaleString("ar-EG")} ج.م
+                        </strong>
+                        <span className="block text-[10px] text-emerald-500 font-semibold mt-1">
+                          تضم{" "}
+                          {products.reduce((sum, p) => sum + (p.stock ?? 0), 0)}{" "}
+                          قطعة متبقية
+                        </span>
+                      </div>
+
+                      <div className="bg-blue-50 border border-blue-150 p-4 rounded-2xl relative overflow-hidden">
+                        <span className="block text-xs font-black text-blue-700 mb-1">
+                          💸 إجمالي رأس مال المشتريات الكلي
+                        </span>
+                        <strong className="text-xl font-black text-blue-800">
+                          {grandTotalPurchases.toLocaleString("ar-EG")} ج.م
+                        </strong>
+                        <span className="block text-[10px] text-blue-500 font-semibold mt-1">
+                          قيمة المشتريات التاريخية الكلية
+                        </span>
+                      </div>
+
+                      <div className="bg-amber-50 border border-amber-150 p-4 rounded-2xl relative overflow-hidden">
+                        <span className="block text-xs font-black text-amber-700 mb-1">
+                          💵 إجمالي الإيرادات المحققة فعلياً
+                        </span>
+                        <strong className="text-xl font-black text-amber-800">
+                          {grandTotalRevenue.toLocaleString("ar-EG")} ج.م
+                        </strong>
+                        <span className="block text-[10px] text-amber-500 font-semibold mt-1">
+                          قيمة المبيعات المستلمة للطلبات
+                        </span>
+                      </div>
+
+                      <div className="bg-[#00bf63]/10 border border-[#00bf63]/25 p-4 rounded-2xl relative overflow-hidden">
+                        <span className="block text-xs font-black text-[#1a9a46] mb-1">
+                          📈 صافي الأرباح المحققة (المكسب الكلي)
+                        </span>
+                        <strong className="text-xl font-black text-[#1a9a46]">
+                          {grandTotalProfit.toLocaleString("ar-EG")} ج.م
+                        </strong>
+                        <span className="block text-[10px] text-emerald-600 font-semibold mt-1">
+                          فارق البيع عن سعر التكلفة الفعلي
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Render Categories and tables */}
+                    {(categories || []).map((cat) => {
+                      const catItems = groupedByCategory[cat.id] || [];
+                      if (catItems.length === 0) return null;
+
+                      const catStockCount = catItems.reduce(
+                        (sum, item) => sum + (item.product.stock ?? 0),
+                        0,
+                      );
+                      const catSoldQty = catItems.reduce(
+                        (sum, item) => sum + item.totalSold,
+                        0,
+                      );
+
+                      return (
+                        <div
+                          key={cat.id}
+                          className="bg-white border border-gray-150 rounded-2xl shadow-xs overflow-hidden"
+                        >
+                          <div className="bg-gray-50/80 px-4 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg">{cat.icon}</span>
+                              <h4 className="text-xs md:text-sm font-black text-gray-800">
+                                {cat.name}
+                              </h4>
+                              <span className="bg-gray-200/60 text-gray-600 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                                {catItems.length} منتج
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 text-[11px] font-bold text-gray-500">
+                              <span>
+                                المتبقي بالمخزن:{" "}
+                                <strong className="text-emerald-600">
+                                  {catStockCount} قطعة
+                                </strong>
+                              </span>
+                              <span>•</span>
+                              <span>
+                                المباع:{" "}
+                                <strong className="text-amber-600">
+                                  {catSoldQty} قطعة
+                                </strong>
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-xs text-right border-collapse">
+                              <thead className="bg-gray-50 text-[11px] text-gray-500 border-b border-gray-100">
+                                <tr>
+                                  <th className="px-4 py-3 font-bold">
+                                    اسم المنتج والماركة
+                                  </th>
+                                  <th className="px-4 py-3 font-bold text-left">
+                                    سعر شراء الوحدة
+                                  </th>
+                                  <th className="px-4 py-3 font-bold text-center">
+                                    إجمالي الكمية المضافة 📥
+                                  </th>
+                                  <th className="px-4 py-3 font-bold text-center">
+                                    إجمالي المباع 📤
+                                  </th>
+                                  <th className="px-4 py-3 font-bold text-center">
+                                    المتبقي بالمخزن 📦
+                                  </th>
+                                  <th className="px-4 py-3 font-bold text-left">
+                                    قيمة المخزون الحالي
+                                  </th>
+                                  <th className="px-4 py-3 font-bold text-left">
+                                    إجمالي قيمة البيع
+                                  </th>
+                                  <th className="px-4 py-3 font-bold text-left">
+                                    صافي المكسب
+                                  </th>
+                                  <th className="px-4 py-3 font-bold text-center">
+                                    سجل الحسابات
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-100">
+                                {catItems.map((item) => {
+                                  const p = item.product;
+                                  return (
+                                    <tr
+                                      key={p.id}
+                                      className="hover:bg-gray-50/40 transition-all"
+                                    >
+                                      <td className="px-4 py-3">
+                                        <div className="flex items-center gap-2.5">
+                                          <img
+                                            src={p.image}
+                                            alt={p.title}
+                                            className="w-10 h-10 rounded-lg object-contain bg-gray-50 border border-gray-100 p-0.5"
+                                          />
+                                          <div>
+                                            <span className="block font-black text-gray-800 leading-tight">
+                                              {p.title}
+                                            </span>
+                                            <span className="block text-[10px] text-gray-400 font-bold mt-0.5">
+                                              {p.brand}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </td>
+                                      <td className="px-4 py-3 font-mono text-left text-gray-600">
+                                        {item.avgPurchaseUnitCost.toFixed(1)}{" "}
+                                        ج.م
+                                      </td>
+                                      <td className="px-4 py-3 text-center font-black text-xs text-blue-600">
+                                        {item.totalPurchasedQty} قطعة
+                                      </td>
+                                      <td className="px-4 py-3 text-center font-bold text-amber-600">
+                                        {item.totalSold} قطعة
+                                      </td>
+                                      <td className="px-4 py-3 text-center">
+                                        <span
+                                          className={`inline-block px-2 py-0.5 rounded font-black text-xs ${
+                                            (p.stock ?? 0) === 0
+                                              ? "bg-red-50 text-red-600 animate-pulse"
+                                              : "text-gray-700"
+                                          }`}
+                                        >
+                                          {p.stock ?? 0} قطعة
+                                        </span>
+                                      </td>
+                                      <td className="px-4 py-3 font-black text-left text-gray-600">
+                                        {item.currentStockValue.toLocaleString(
+                                          "ar-EG",
+                                        )}{" "}
+                                        ج.م
+                                      </td>
+                                      <td className="px-4 py-3 font-black text-left text-indigo-600">
+                                        {item.totalRevenue.toLocaleString(
+                                          "ar-EG",
+                                        )}{" "}
+                                        ج.م
+                                      </td>
+                                      <td
+                                        className={`px-4 py-3 font-black text-left ${
+                                          item.netProfit > 0
+                                            ? "text-[#1a9a46]"
+                                            : "text-gray-500"
+                                        }`}
+                                      >
+                                        {item.netProfit > 0
+                                          ? `+${item.netProfit.toLocaleString("ar-EG")}`
+                                          : "0"}{" "}
+                                        ج.م
+                                      </td>
+                                      <td className="px-4 py-3 text-center">
+                                        <button
+                                          onClick={() =>
+                                            setSelectedInventoryProduct(p)
+                                          }
+                                          className="px-3 py-1.5 bg-gray-100 hover:bg-[#00bf63] hover:text-white text-gray-700 rounded-lg text-[10px] font-black cursor-pointer transition-all active:scale-95 flex items-center gap-1 mx-auto"
+                                        >
+                                          <span>عرض السجل التفصيلي 📜</span>
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
         </div>
       )}
 
       {/**************** TAB: BANNER *****************/}
-      {activeTab === 'banner' && (
+      {activeTab === "banner" && (
         <div className="max-w-2xl bg-white border border-gray-150 p-6 rounded-2xl shadow-xs">
           <div className="mb-6">
-            <h3 className="text-lg font-black text-gray-800">تعديل الإعلان واللافتة الترحيبية للرئيسية</h3>
+            <h3 className="text-lg font-black text-gray-800">
+              تعديل الإعلان واللافتة الترحيبية للرئيسية
+            </h3>
             <p className="text-xs text-gray-400 font-bold mt-1">
-              تغيير النصوص والصورة والمحتوى المميز أعلى الجزء الرئيسي بعيداً عن كود المصدر.
+              تغيير النصوص والصورة والمحتوى المميز أعلى الجزء الرئيسي بعيداً عن
+              كود المصدر.
             </p>
           </div>
 
@@ -2379,7 +3066,9 @@ ${itemsBrief}
 
           <form onSubmit={handleUpdateBanner} className="space-y-4 text-right">
             <div>
-              <label className="block text-xs font-extrabold text-gray-600 mb-1">الشارة الترويجية (أعلى العنوان)</label>
+              <label className="block text-xs font-extrabold text-gray-600 mb-1">
+                الشارة الترويجية (أعلى العنوان)
+              </label>
               <input
                 type="text"
                 required
@@ -2391,7 +3080,9 @@ ${itemsBrief}
             </div>
 
             <div>
-              <label className="block text-xs font-extrabold text-gray-600 mb-1">العنوان الرئيسي العريض</label>
+              <label className="block text-xs font-extrabold text-gray-600 mb-1">
+                العنوان الرئيسي العريض
+              </label>
               <input
                 type="text"
                 required
@@ -2403,7 +3094,9 @@ ${itemsBrief}
             </div>
 
             <div>
-              <label className="block text-xs font-extrabold text-gray-600 mb-1">الوصف والفقرة التفصيلية السفلى</label>
+              <label className="block text-xs font-extrabold text-gray-600 mb-1">
+                الوصف والفقرة التفصيلية السفلى
+              </label>
               <textarea
                 required
                 rows={3}
@@ -2415,7 +3108,9 @@ ${itemsBrief}
             </div>
 
             <div>
-              <label className="block text-xs font-extrabold text-gray-600 mb-1">صورة الخلفية / الإعلان للرئيسية</label>
+              <label className="block text-xs font-extrabold text-gray-600 mb-1">
+                صورة الخلفية / الإعلان للرئيسية
+              </label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-center">
                 <div className="space-y-2">
                   <input
@@ -2426,7 +3121,9 @@ ${itemsBrief}
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl text-xs text-left font-mono focus:ring-2 focus:ring-[#00bf63]/40"
                   />
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-gray-400 font-bold whitespace-nowrap">أو ارفع من جهازك:</span>
+                    <span className="text-[10px] text-gray-400 font-bold whitespace-nowrap">
+                      أو ارفع من جهازك:
+                    </span>
                     <label className="flex-1 py-2 px-3 bg-green-50 hover:bg-green-100 text-[#00bf63] border border-[#00bf63]/30 rounded-xl text-center text-xs font-black cursor-pointer transition-colors block">
                       <span>اختر صورة من جهازك 📁</span>
                       <input
@@ -2452,9 +3149,9 @@ ${itemsBrief}
                 <div className="border border-gray-150 rounded-2xl p-2 bg-gray-50 flex items-center justify-center h-28 relative overflow-hidden group">
                   {formImages.length > 0 && formImages[0] ? (
                     <>
-                      <img 
-                        src={formImages[0]} 
-                        alt="معاينة إعلان الرئيسية" 
+                      <img
+                        src={formImages[0]}
+                        alt="معاينة إعلان الرئيسية"
                         className="max-h-full max-w-full object-contain rounded-lg shadow-sm"
                         referrerPolicy="no-referrer"
                       />
@@ -2468,36 +3165,49 @@ ${itemsBrief}
                       </button>
                     </>
                   ) : (
-                    <span className="text-[10px] text-gray-400 font-bold">لا توجد صورة معينة للبانر</span>
+                    <span className="text-[10px] text-gray-400 font-bold">
+                      لا توجد صورة معينة للبانر
+                    </span>
                   )}
                 </div>
               </div>
-              <p className="text-[10px] text-gray-400 font-semibold mt-1">الرابط أو الصورة المرفوعة تمثل واجهة الإعلان والمنتجات على اليمين.</p>
+              <p className="text-[10px] text-gray-400 font-semibold mt-1">
+                الرابط أو الصورة المرفوعة تمثل واجهة الإعلان والمنتجات على
+                اليمين.
+              </p>
             </div>
 
             {/* Store Status Toggle */}
             <div className="bg-amber-50/50 border border-amber-100 rounded-2xl p-5 space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="text-sm font-black text-amber-900">حالة فتح وإغلاق المتجر الحالية 🏪</h4>
+                  <h4 className="text-sm font-black text-amber-900">
+                    حالة فتح وإغلاق المتجر الحالية 🏪
+                  </h4>
                   <p className="text-[10px] text-amber-700/80 font-bold mt-0.5">
-                    عند إغلاق المتجر، سيتم تعطيل استقبال الطلبات مؤقتاً وسيظهر شريط تنبيه واضح للزوار لتجنب إرسال طلبات جديدة.
+                    عند إغلاق المتجر، سيتم تعطيل استقبال الطلبات مؤقتاً وسيظهر
+                    شريط تنبيه واضح للزوار لتجنب إرسال طلبات جديدة.
                   </p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
-                  <input 
-                    type="checkbox" 
-                    checked={formBannerIsClosed} 
-                    onChange={(e) => setFormBannerIsClosed(e.target.checked)} 
-                    className="sr-only peer" 
+                  <input
+                    type="checkbox"
+                    checked={formBannerIsClosed}
+                    onChange={(e) => setFormBannerIsClosed(e.target.checked)}
+                    className="sr-only peer"
                   />
                   <div className="w-11 h-6 bg-green-500 peer-focus:outline-none rounded-full peer peer-checked:bg-red-500 after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
                 </label>
               </div>
               <div className="flex items-center gap-2">
-                <span className={`w-2.5 h-2.5 rounded-full ${formBannerIsClosed ? 'bg-red-500 animate-pulse' : 'bg-[#00bf63]'}`} />
+                <span
+                  className={`w-2.5 h-2.5 rounded-full ${formBannerIsClosed ? "bg-red-500 animate-pulse" : "bg-[#00bf63]"}`}
+                />
                 <span className="text-xs font-black text-gray-700">
-                  المحل حالياً: {formBannerIsClosed ? '❌ مغلق مؤقتاً (لا يمكن الشراء)' : '✅ مفتوح وجاهز لاستقبال الطلبات'}
+                  المحل حالياً:{" "}
+                  {formBannerIsClosed
+                    ? "❌ مغلق مؤقتاً (لا يمكن الشراء)"
+                    : "✅ مفتوح وجاهز لاستقبال الطلبات"}
                 </span>
               </div>
             </div>
@@ -2507,14 +3217,16 @@ ${itemsBrief}
               disabled={isBannerSubmitting}
               className="px-5 py-3.5 bg-[#00bf63] hover:bg-brand-green-dark text-white rounded-xl text-xs font-black shadow-md cursor-pointer disabled:opacity-50 w-full sm:w-auto"
             >
-              {isBannerSubmitting ? 'جاري حفظ التحديث...' : 'تأكيد وحفظ الإعدادات 🚀'}
+              {isBannerSubmitting
+                ? "جاري حفظ التحديث..."
+                : "تأكيد وحفظ الإعدادات 🚀"}
             </button>
           </form>
         </div>
       )}
 
       {/**************** TAB: USERS *****************/}
-      {activeTab === 'users' && (
+      {activeTab === "users" && (
         <div className="space-y-6">
           <div className="bg-white border border-gray-150 p-6 rounded-2xl shadow-xs">
             <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -2526,13 +3238,17 @@ ${itemsBrief}
                   </span>
                 </h3>
                 <p className="text-xs text-gray-400 font-bold mt-1">
-                  يمكنك إضافة حتى 4 مستخدمين أو أكثر، وتعيين اسم مستخدم وكلمة مرور مخصصة لكل شخص ليقوم بتسجيل الدخول والتعديل بحسابه الخاص.
+                  يمكنك إضافة حتى 4 مستخدمين أو أكثر، وتعيين اسم مستخدم وكلمة
+                  مرور مخصصة لكل شخص ليقوم بتسجيل الدخول والتعديل بحسابه الخاص.
                 </p>
               </div>
               <button
                 onClick={() => {
                   fetchAdminUsers();
-                  showUserMessage('success', 'تم تحديث قائمة المشرفين بنجاح! 🔄');
+                  showUserMessage(
+                    "success",
+                    "تم تحديث قائمة المشرفين بنجاح! 🔄",
+                  );
                 }}
                 className="px-3 py-1.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 text-xs font-bold rounded-lg transition-colors cursor-pointer self-start md:self-auto"
               >
@@ -2541,11 +3257,13 @@ ${itemsBrief}
             </div>
 
             {userTabMsg && (
-              <div className={`mb-6 p-4 rounded-xl text-xs font-black text-center border animate-fade-in ${
-                userTabMsg.type === 'success' 
-                  ? 'bg-green-50 border-green-200 text-green-700' 
-                  : 'bg-red-50 border-red-200 text-red-600'
-              }`}>
+              <div
+                className={`mb-6 p-4 rounded-xl text-xs font-black text-center border animate-fade-in ${
+                  userTabMsg.type === "success"
+                    ? "bg-green-50 border-green-200 text-green-700"
+                    : "bg-red-50 border-red-200 text-red-600"
+                }`}
+              >
                 {userTabMsg.text}
               </div>
             )}
@@ -2567,27 +3285,42 @@ ${itemsBrief}
                   </thead>
                   <tbody>
                     {adminUsers.map((u, i) => {
-                      const isCurrentUser = u.displayName === adminDisplayName || u.email === username;
+                      const isCurrentUser =
+                        u.displayName === adminDisplayName ||
+                        u.email === username;
                       return (
-                        <tr key={i} className="border-b border-gray-100 text-xs text-gray-700 hover:bg-gray-50/50">
+                        <tr
+                          key={i}
+                          className="border-b border-gray-100 text-xs text-gray-700 hover:bg-gray-50/50"
+                        >
                           <td className="p-3 font-extrabold text-gray-800">
-                            {u.displayName || 'مستخدم غير مسمى'}
+                            {u.displayName || "مستخدم غير مسمى"}
                             {isCurrentUser && (
                               <span className="mr-2 text-[10px] bg-green-100 text-[#00bf63] px-2 py-0.5 rounded-full font-black">
                                 حسابك الحالي 👤
                               </span>
                             )}
                           </td>
-                          <td className="p-3 font-mono text-gray-500 text-left" dir="ltr">{u.username}</td>
-                          <td className="p-3 font-mono text-gray-500 text-left" dir="ltr">{u.email}</td>
+                          <td
+                            className="p-3 font-mono text-gray-500 text-left"
+                            dir="ltr"
+                          >
+                            {u.username}
+                          </td>
+                          <td
+                            className="p-3 font-mono text-gray-500 text-left"
+                            dir="ltr"
+                          >
+                            {u.email}
+                          </td>
                           <td className="p-3 text-center flex items-center justify-center gap-2">
                             <button
                               type="button"
                               onClick={() => {
                                 setEditingUser(u);
-                                setEditingAdminName(u.displayName || '');
-                                setEditingAdminUsername(u.email || '');
-                                setEditAdminError('');
+                                setEditingAdminName(u.displayName || "");
+                                setEditingAdminUsername(u.email || "");
+                                setEditAdminError("");
                               }}
                               className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-100 rounded-lg transition-colors cursor-pointer text-[10px] font-black"
                               title="تعديل بيانات الحساب"
@@ -2601,19 +3334,31 @@ ${itemsBrief}
                                   onClick={async () => {
                                     setDeletingUserConfirm(null);
                                     if (adminUsers.length <= 1) {
-                                      showUserMessage('error', 'لا يمكنك حذف المستخدم الوحيد! يجب أن يبقى مستخدم واحد على الأقل.');
+                                      showUserMessage(
+                                        "error",
+                                        "لا يمكنك حذف المستخدم الوحيد! يجب أن يبقى مستخدم واحد على الأقل.",
+                                      );
                                       return;
                                     }
                                     if (isCurrentUser) {
-                                      showUserMessage('error', 'لا يمكنك حذف الحساب الخاص بك أثناء تسجيل الدخول به حالياً!');
+                                      showUserMessage(
+                                        "error",
+                                        "لا يمكنك حذف الحساب الخاص بك أثناء تسجيل الدخول به حالياً!",
+                                      );
                                       return;
                                     }
                                     try {
                                       await deleteFirestoreUser(u.uid);
-                                      showUserMessage('success', 'تم حذف حساب المشرف بنجاح! 🎉');
+                                      showUserMessage(
+                                        "success",
+                                        "تم حذف حساب المشرف بنجاح! 🎉",
+                                      );
                                       fetchAdminUsers(); // Refresh list
                                     } catch (err) {
-                                      showUserMessage('error', 'خطأ في الاتصال بـ Firestore أثناء الحذف.');
+                                      showUserMessage(
+                                        "error",
+                                        "خطأ في الاتصال بـ Firestore أثناء الحذف.",
+                                      );
                                     }
                                   }}
                                   className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors cursor-pointer text-[10px] font-black shadow-xs"
@@ -2633,11 +3378,17 @@ ${itemsBrief}
                                 type="button"
                                 onClick={() => {
                                   if (adminUsers.length <= 1) {
-                                    showUserMessage('error', 'لا يمكنك حذف المستخدم الوحيد! يجب أن يبقى مستخدم واحد على الأقل.');
+                                    showUserMessage(
+                                      "error",
+                                      "لا يمكنك حذف المستخدم الوحيد! يجب أن يبقى مستخدم واحد على الأقل.",
+                                    );
                                     return;
                                   }
                                   if (isCurrentUser) {
-                                    showUserMessage('error', 'لا يمكنك حذف الحساب الخاص بك أثناء تسجيل الدخول به حالياً!');
+                                    showUserMessage(
+                                      "error",
+                                      "لا يمكنك حذف الحساب الخاص بك أثناء تسجيل الدخول به حالياً!",
+                                    );
                                     return;
                                   }
                                   setDeletingUserConfirm(u);
@@ -2658,17 +3409,32 @@ ${itemsBrief}
             )}
 
             <div className="border-t border-gray-100 pt-6">
-              <h4 className="text-sm font-black text-gray-800 mb-4">➕ إضافة مشرف/مستخدم جديد للوحة التحكم</h4>
+              <h4 className="text-sm font-black text-gray-800 mb-4">
+                ➕ إضافة مشرف/مستخدم جديد للوحة التحكم
+              </h4>
               <form
                 onSubmit={async (e) => {
                   e.preventDefault();
-                  if (!newAdminUsername.trim() || !newAdminPassword.trim() || !newAdminName.trim()) {
-                    showUserMessage('error', 'برجاء ملء جميع الحقول المطلوبة.');
+                  if (
+                    !newAdminUsername.trim() ||
+                    !newAdminPassword.trim() ||
+                    !newAdminName.trim()
+                  ) {
+                    showUserMessage("error", "برجاء ملء جميع الحقول المطلوبة.");
                     return;
                   }
 
-                  if (adminUsers.some(u => u.email.toLowerCase() === newAdminUsername.trim().toLowerCase())) {
-                    showUserMessage('error', 'هذا البريد الإلكتروني مستخدم بالفعل!');
+                  if (
+                    adminUsers.some(
+                      (u) =>
+                        u.email.toLowerCase() ===
+                        newAdminUsername.trim().toLowerCase(),
+                    )
+                  ) {
+                    showUserMessage(
+                      "error",
+                      "هذا البريد الإلكتروني مستخدم بالفعل!",
+                    );
                     return;
                   }
 
@@ -2676,25 +3442,37 @@ ${itemsBrief}
                     // Note: Creating a user client-side will sign out the current admin.
                     // This is a limitation without a backend Admin SDK.
                     // The original admin will need to log back in.
-                    await createAdminUser(newAdminUsername.trim(), newAdminPassword.trim(), newAdminName.trim());
-                    showUserMessage('success', 'تمت إضافة المشرف الجديد بنجاح! سيتم تسجيل خروجك الآن، يرجى إعادة تسجيل الدخول.');
+                    await createAdminUser(
+                      newAdminUsername.trim(),
+                      newAdminPassword.trim(),
+                      newAdminName.trim(),
+                    );
+                    showUserMessage(
+                      "success",
+                      "تمت إضافة المشرف الجديد بنجاح! سيتم تسجيل خروجك الآن، يرجى إعادة تسجيل الدخول.",
+                    );
 
                     // Clear form and refresh list
-                    setNewAdminUsername('');
-                    setNewAdminPassword('');
-                    setNewAdminName('');
+                    setNewAdminUsername("");
+                    setNewAdminPassword("");
+                    setNewAdminName("");
                     fetchAdminUsers();
 
                     // Log out current admin as the new user is now signed in
                     setTimeout(handleLogout, 3000);
                   } catch (err: any) {
-                    showUserMessage('error', err.message || 'فشل في إضافة المشرف الجديد.');
+                    showUserMessage(
+                      "error",
+                      err.message || "فشل في إضافة المشرف الجديد.",
+                    );
                   }
                 }}
                 className="grid grid-cols-1 md:grid-cols-3 gap-4"
               >
                 <div>
-                  <label className="block text-xs font-extrabold text-gray-600 mb-1">الاسم الكامل (مثال: أحمد محمد)</label>
+                  <label className="block text-xs font-extrabold text-gray-600 mb-1">
+                    الاسم الكامل (مثال: أحمد محمد)
+                  </label>
                   <input
                     type="text"
                     required
@@ -2705,7 +3483,9 @@ ${itemsBrief}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-extrabold text-gray-600 mb-1">البريد الإلكتروني للدخول</label>
+                  <label className="block text-xs font-extrabold text-gray-600 mb-1">
+                    البريد الإلكتروني للدخول
+                  </label>
                   <input
                     type="email"
                     required
@@ -2717,7 +3497,9 @@ ${itemsBrief}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-extrabold text-gray-600 mb-1">كلمة المرور</label>
+                  <label className="block text-xs font-extrabold text-gray-600 mb-1">
+                    كلمة المرور
+                  </label>
                   <input
                     type="text"
                     required
@@ -2760,18 +3542,28 @@ ${itemsBrief}
                 <form
                   onSubmit={async (e) => {
                     e.preventDefault();
-                    setEditAdminError('');
+                    setEditAdminError("");
 
-                    if (!editingAdminName.trim() || !editingAdminUsername.trim()) {
-                      setEditAdminError('الاسم والبريد الإلكتروني حقول مطلوبة.');
+                    if (
+                      !editingAdminName.trim() ||
+                      !editingAdminUsername.trim()
+                    ) {
+                      setEditAdminError(
+                        "الاسم والبريد الإلكتروني حقول مطلوبة.",
+                      );
                       return;
                     }
 
                     const isEmailTaken = adminUsers.some(
-                      (u) => u.uid !== editingUser.uid && u.email.toLowerCase() === editingAdminUsername.trim().toLowerCase()
+                      (u) =>
+                        u.uid !== editingUser.uid &&
+                        u.email.toLowerCase() ===
+                          editingAdminUsername.trim().toLowerCase(),
                     );
                     if (isEmailTaken) {
-                      setEditAdminError('⚠️ هذا البريد الإلكتروني مستخدم بالفعل!');
+                      setEditAdminError(
+                        "⚠️ هذا البريد الإلكتروني مستخدم بالفعل!",
+                      );
                       return;
                     }
 
@@ -2782,11 +3574,16 @@ ${itemsBrief}
 
                     try {
                       await updateFirestoreUser(editingUser.uid, updates);
-                      showUserMessage('success', 'تم تعديل بيانات المشرف بنجاح! 🎉');
+                      showUserMessage(
+                        "success",
+                        "تم تعديل بيانات المشرف بنجاح! 🎉",
+                      );
                       setEditingUser(null);
                       fetchAdminUsers();
                     } catch (err) {
-                      setEditAdminError('فشل في تعديل بيانات الحساب في Firestore.');
+                      setEditAdminError(
+                        "فشل في تعديل بيانات الحساب في Firestore.",
+                      );
                     }
                   }}
                   className="space-y-4 text-right"
@@ -2797,7 +3594,9 @@ ${itemsBrief}
                     </div>
                   )}
                   <div>
-                    <label className="block text-xs font-black text-gray-700 mb-1">الاسم الكامل للمشرف 👤</label>
+                    <label className="block text-xs font-black text-gray-700 mb-1">
+                      الاسم الكامل للمشرف 👤
+                    </label>
                     <input
                       type="text"
                       required
@@ -2808,7 +3607,9 @@ ${itemsBrief}
                   </div>
 
                   <div>
-                    <label className="block text-xs font-black text-gray-700 mb-1">البريد الإلكتروني للدخول 💻</label>
+                    <label className="block text-xs font-black text-gray-700 mb-1">
+                      البريد الإلكتروني للدخول 💻
+                    </label>
                     <input
                       type="text"
                       required
@@ -2820,7 +3621,9 @@ ${itemsBrief}
                   </div>
 
                   <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 text-xs text-amber-800 font-bold">
-                    ملاحظة: لا يمكن تغيير كلمة المرور من هنا. يجب على المستخدم تغييرها بنفسه أو يمكن حذف المستخدم وإعادة إنشائه بكلمة مرور جديدة.
+                    ملاحظة: لا يمكن تغيير كلمة المرور من هنا. يجب على المستخدم
+                    تغييرها بنفسه أو يمكن حذف المستخدم وإعادة إنشائه بكلمة مرور
+                    جديدة.
                   </div>
 
                   <div className="flex gap-2 justify-end pt-2">
@@ -2846,13 +3649,17 @@ ${itemsBrief}
       )}
 
       {/**************** TAB: QR CODE & SHARE *****************/}
-      {activeTab === 'qrcode' && (
+      {activeTab === "qrcode" && (
         <div className="bg-white border border-gray-150 rounded-3xl p-6 md:p-8 shadow-sm space-y-6">
           <div className="text-center max-w-2xl mx-auto space-y-4">
             <span className="text-4xl block">📱</span>
-            <h3 className="text-2xl font-black text-gray-800">رموز الاستجابة السريعة (QR Codes) للمتجر</h3>
+            <h3 className="text-2xl font-black text-gray-800">
+              رموز الاستجابة السريعة (QR Codes) للمتجر
+            </h3>
             <p className="text-xs sm:text-sm text-gray-500 font-bold leading-relaxed">
-              قمنا بتوفير نوعين من رموز الـ QR لتسهيل العمل في متجرك. يمكنك تحميل أي منهما كصورة، طباعته، ومشاركته مع زبائنك أو استخدامه بنفسك.
+              قمنا بتوفير نوعين من رموز الـ QR لتسهيل العمل في متجرك. يمكنك
+              تحميل أي منهما كصورة، طباعته، ومشاركته مع زبائنك أو استخدامه
+              بنفسك.
             </p>
           </div>
 
@@ -2861,17 +3668,23 @@ ${itemsBrief}
             {/* 1. Direct Customer QR Code (Green Accent) */}
             <div className="bg-emerald-50/50 border-2 border-emerald-100 rounded-3xl p-6 flex flex-col justify-between text-center space-y-5 shadow-xs transition-all hover:shadow-md">
               <div className="flex flex-col items-center space-y-2">
-                <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-3 py-1 rounded-full">⚡ للزبائن والعملاء (دخول تلقائي)</span>
-                <h4 className="text-base font-black text-gray-800">رمز الزبائن المباشر 🛒</h4>
+                <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-3 py-1 rounded-full">
+                  ⚡ للزبائن والعملاء (دخول تلقائي)
+                </span>
+                <h4 className="text-base font-black text-gray-800">
+                  رمز الزبائن المباشر 🛒
+                </h4>
                 <p className="text-xs text-gray-500 font-bold leading-normal max-w-sm">
-                  اطبع هذا الرمز وعلقه في المحل لكي يمسحه الزبائن بهواتفهم ويدخلوا إلى المتجر لتصفح المنتجات وطلبها <strong>مباشرة بدون شاشة اختيار الأدوار</strong>.
+                  اطبع هذا الرمز وعلقه في المحل لكي يمسحه الزبائن بهواتفهم
+                  ويدخلوا إلى المتجر لتصفح المنتجات وطلبها{" "}
+                  <strong>مباشرة بدون شاشة اختيار الأدوار</strong>.
                 </p>
               </div>
 
               <div className="bg-white p-4 rounded-2xl border border-emerald-100 shadow-sm inline-block mx-auto">
-                <img 
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(getDirectUserUrl(qrCodeUrl))}`} 
-                  alt="Direct Customer QR Code" 
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(getDirectUserUrl(qrCodeUrl))}`}
+                  alt="Direct Customer QR Code"
                   className="w-44 h-44 sm:w-48 sm:h-48 mx-auto object-contain"
                   referrerPolicy="no-referrer"
                 />
@@ -2879,8 +3692,13 @@ ${itemsBrief}
 
               <div className="space-y-3">
                 <div className="bg-white px-3 py-2 rounded-xl border border-gray-150 text-right">
-                  <span className="block text-[10px] text-gray-400 font-bold mb-0.5">الرابط المدمج في كود الزبائن:</span>
-                  <p className="text-[10px] text-emerald-600 font-mono font-bold select-all break-all leading-relaxed" dir="ltr">
+                  <span className="block text-[10px] text-gray-400 font-bold mb-0.5">
+                    الرابط المدمج في كود الزبائن:
+                  </span>
+                  <p
+                    className="text-[10px] text-emerald-600 font-mono font-bold select-all break-all leading-relaxed"
+                    dir="ltr"
+                  >
                     {getDirectUserUrl(qrCodeUrl)}
                   </p>
                 </div>
@@ -2896,8 +3714,10 @@ ${itemsBrief}
                   </a>
                   <button
                     onClick={() => {
-                      navigator.clipboard.writeText(getDirectUserUrl(qrCodeUrl));
-                      alert('تم نسخ رابط الزبائن المباشر بنجاح! 📋');
+                      navigator.clipboard.writeText(
+                        getDirectUserUrl(qrCodeUrl),
+                      );
+                      alert("تم نسخ رابط الزبائن المباشر بنجاح! 📋");
                     }}
                     className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-black rounded-xl transition-all border border-gray-200 cursor-pointer"
                   >
@@ -2910,17 +3730,23 @@ ${itemsBrief}
             {/* 2. General Gateway QR Code (Purple Accent) */}
             <div className="bg-purple-50/50 border-2 border-purple-100 rounded-3xl p-6 flex flex-col justify-between text-center space-y-5 shadow-xs transition-all hover:shadow-md">
               <div className="flex flex-col items-center space-y-2">
-                <span className="bg-purple-100 text-purple-800 text-[10px] font-black px-3 py-1 rounded-full">🔑 للمالك والمسؤول (شاشة الاختيار)</span>
-                <h4 className="text-base font-black text-gray-800">الرمز العام / كود المدير 👑</h4>
+                <span className="bg-purple-100 text-purple-800 text-[10px] font-black px-3 py-1 rounded-full">
+                  🔑 للمالك والمسؤول (شاشة الاختيار)
+                </span>
+                <h4 className="text-base font-black text-gray-800">
+                  الرمز العام / كود المدير 👑
+                </h4>
                 <p className="text-xs text-gray-500 font-bold leading-normal max-w-sm">
-                  استخدم هذا الكود للدخول بنفسك كمدير أو لإعطائه لمن يحتاج الدخول للوحة التحكم، حيث يفتح <strong>شاشة الاختيار</strong> (مستخدم أو مالك) لتسجيل الدخول.
+                  استخدم هذا الكود للدخول بنفسك كمدير أو لإعطائه لمن يحتاج
+                  الدخول للوحة التحكم، حيث يفتح <strong>شاشة الاختيار</strong>{" "}
+                  (مستخدم أو مالك) لتسجيل الدخول.
                 </p>
               </div>
 
               <div className="bg-white p-4 rounded-2xl border border-purple-100 shadow-sm inline-block mx-auto">
-                <img 
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(getGateUrl(qrCodeUrl))}`} 
-                  alt="General/Admin QR Code" 
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(getGateUrl(qrCodeUrl))}`}
+                  alt="General/Admin QR Code"
                   className="w-44 h-44 sm:w-48 sm:h-48 mx-auto object-contain"
                   referrerPolicy="no-referrer"
                 />
@@ -2928,8 +3754,13 @@ ${itemsBrief}
 
               <div className="space-y-3">
                 <div className="bg-white px-3 py-2 rounded-xl border border-gray-150 text-right">
-                  <span className="block text-[10px] text-gray-400 font-bold mb-0.5">الرابط المدمج في كود المدير:</span>
-                  <p className="text-[10px] text-brand-purple font-mono font-bold select-all break-all leading-relaxed" dir="ltr">
+                  <span className="block text-[10px] text-gray-400 font-bold mb-0.5">
+                    الرابط المدمج في كود المدير:
+                  </span>
+                  <p
+                    className="text-[10px] text-brand-purple font-mono font-bold select-all break-all leading-relaxed"
+                    dir="ltr"
+                  >
                     {getGateUrl(qrCodeUrl)}
                   </p>
                 </div>
@@ -2946,7 +3777,7 @@ ${itemsBrief}
                   <button
                     onClick={() => {
                       navigator.clipboard.writeText(getGateUrl(qrCodeUrl));
-                      alert('تم نسخ رابط شاشة الاختيار بنجاح! 📋');
+                      alert("تم نسخ رابط شاشة الاختيار بنجاح! 📋");
                     }}
                     className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-black rounded-xl transition-all border border-gray-200 cursor-pointer"
                   >
@@ -2965,13 +3796,22 @@ ${itemsBrief}
               </h5>
               <ul className="text-xs text-emerald-700 font-bold space-y-2 leading-relaxed list-disc list-inside">
                 <li>
-                  <strong>رابط الزبائن المباشر:</strong> يمكنك وضعه كملصق على باب المحل أو طاولات العرض، عندما يقوم الزبون بمسحه يدخل مباشرة إلى قائمة المنتجات للشراء الفوري.
+                  <strong>رابط الزبائن المباشر:</strong> يمكنك وضعه كملصق على
+                  باب المحل أو طاولات العرض، عندما يقوم الزبون بمسحه يدخل مباشرة
+                  إلى قائمة المنتجات للشراء الفوري.
                 </li>
                 <li>
-                  <strong>رمز كود المدير:</strong> يمكنك حفظه بهاتفك لسهولة الدخول للوحة التحكم وتحديث المنتجات والطلبيات من أي مكان، حيث يوجهك لشاشة تسجيل الدخول.
+                  <strong>رمز كود المدير:</strong> يمكنك حفظه بهاتفك لسهولة
+                  الدخول للوحة التحكم وتحديث المنتجات والطلبيات من أي مكان، حيث
+                  يوجهك لشاشة تسجيل الدخول.
                 </li>
                 <li>
-                  <strong>نشر الرابط:</strong> رابط موقعك الرسمي هو <span className="font-mono text-emerald-950 select-all font-black">https://elshorbagy-store.vercel.app</span> ويمكنك نسخه وإرساله لجميع عملائك على واتساب وجروبات الفيس بوك ليعمل 24 ساعة حتى لو كنت غير متصل بالإنترنت!
+                  <strong>نشر الرابط:</strong> رابط موقعك الرسمي هو{" "}
+                  <span className="font-mono text-emerald-950 select-all font-black">
+                    https://elshorbagy-store.vercel.app
+                  </span>{" "}
+                  ويمكنك نسخه وإرساله لجميع عملائك على واتساب وجروبات الفيس بوك
+                  ليعمل 24 ساعة حتى لو كنت غير متصل بالإنترنت!
                 </li>
               </ul>
             </div>
@@ -2983,10 +3823,11 @@ ${itemsBrief}
       {isProductModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 z-50 overflow-y-auto">
           <div className="bg-white rounded-3xl w-full max-w-xl p-6 border border-gray-150 shadow-2xl relative max-h-[90vh] overflow-y-auto scrollbar-thin">
-            
             <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-4">
               <h4 className="text-base sm:text-lg font-black text-gray-800">
-                {editingProduct ? `تعديل معلمات المنتج: ${editingProduct.title}` : 'إضافة منتج مخازن جديد'}
+                {editingProduct
+                  ? `تعديل معلمات المنتج: ${editingProduct.title}`
+                  : "إضافة منتج مخازن جديد"}
               </h4>
               <button
                 onClick={() => setIsProductModalOpen(false)}
@@ -3002,7 +3843,10 @@ ${itemsBrief}
               </div>
             )}
 
-            <form onSubmit={handleProductFormSubmit} className="space-y-4 text-right">
+            <form
+              onSubmit={handleProductFormSubmit}
+              className="space-y-4 text-right"
+            >
               {/* Barcode / QR scan field */}
               <div className="bg-green-50/30 p-3 rounded-2xl border border-dashed border-[#00bf63]/30">
                 <label className="block text-xs font-black text-gray-700 mb-1 flex items-center gap-1.5">
@@ -3016,11 +3860,16 @@ ${itemsBrief}
                   placeholder="وجه جهاز الاسكانر للباركود ليتم تعبئة تفاصيل المنتج المخزن تلقائياً"
                   className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-[#00bf63]/40 text-left font-mono"
                 />
-                <p className="text-[10px] text-gray-400 font-bold mt-1">عند مسح الباركود، إذا كان المنتج مسجلاً سابقاً سيتم ملء جميع الحقول تلقائياً لتسهيل تكراره.</p>
+                <p className="text-[10px] text-gray-400 font-bold mt-1">
+                  عند مسح الباركود، إذا كان المنتج مسجلاً سابقاً سيتم ملء جميع
+                  الحقول تلقائياً لتسهيل تكراره.
+                </p>
               </div>
 
               <div>
-                <label className="block text-xs font-extrabold text-gray-600 mb-1">اسم وعنوان المنتج</label>
+                <label className="block text-xs font-extrabold text-gray-600 mb-1">
+                  اسم وعنوان المنتج
+                </label>
                 <input
                   type="text"
                   required
@@ -3032,7 +3881,9 @@ ${itemsBrief}
               </div>
 
               <div>
-                <label className="block text-xs font-extrabold text-gray-600 mb-1">شرح وتفاصيل المنتج</label>
+                <label className="block text-xs font-extrabold text-gray-600 mb-1">
+                  شرح وتفاصيل المنتج
+                </label>
                 <textarea
                   rows={2}
                   value={formDescription}
@@ -3058,7 +3909,9 @@ ${itemsBrief}
                 </div>
 
                 <div>
-                  <label className="block text-xs font-extrabold text-gray-700 mb-1">السعر الأصلي (البيع)</label>
+                  <label className="block text-xs font-extrabold text-gray-700 mb-1">
+                    السعر الأصلي (البيع)
+                  </label>
                   <input
                     type="number"
                     required
@@ -3070,7 +3923,9 @@ ${itemsBrief}
                 </div>
 
                 <div>
-                  <label className="block text-xs font-extrabold text-gray-500 mb-1">السعر بعد الخصم</label>
+                  <label className="block text-xs font-extrabold text-gray-500 mb-1">
+                    السعر بعد الخصم
+                  </label>
                   <input
                     type="number"
                     value={formDiscountPrice}
@@ -3083,7 +3938,9 @@ ${itemsBrief}
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
-                  <label className="block text-xs font-extrabold text-gray-600 mb-1">الكمية بالمخزن</label>
+                  <label className="block text-xs font-extrabold text-gray-600 mb-1">
+                    الكمية بالمخزن
+                  </label>
                   <input
                     type="number"
                     required
@@ -3095,7 +3952,9 @@ ${itemsBrief}
                 </div>
 
                 <div>
-                  <label className="block text-xs font-extrabold text-[#00bf63] mb-1">📅 تاريخ إضافة المنتج</label>
+                  <label className="block text-xs font-extrabold text-[#00bf63] mb-1">
+                    📅 تاريخ إضافة المنتج
+                  </label>
                   <input
                     type="date"
                     required
@@ -3106,21 +3965,37 @@ ${itemsBrief}
                 </div>
 
                 <div>
-                  <label className="block text-xs font-extrabold text-gray-600 mb-1">التصنيف</label>
-                  <select
-                    required
-                    value={formCategory}
-                    onChange={(e) => setFormCategory(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-[#00bf63]/40 text-right font-black"
-                  > 
-                    {(categories || []).map((cat) => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
-                    ))} 
-                  </select>
+                  <label className="block text-xs font-extrabold text-gray-600 mb-1">
+                    التصنيف
+                  </label>
+                  {categories.length === 0 ? (
+                    <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs font-black">
+                      لا يوجد أي قسم حتى الآن.
+                      <br />
+                      قم بإضافة قسم أولاً من صفحة "إدارة الأقسام".
+                    </div>
+                  ) : (
+                    <select
+                      required
+                      value={formCategory}
+                      onChange={(e) => setFormCategory(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-[#00bf63]/40 text-right font-black"
+                    >
+                      <option value="">اختر القسم...</option>
+
+                      {categories.map((cat) => (
+                        <option key={cat.id} value={cat.name}>
+                          {cat.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
                 <div>
-                  <label className="block text-xs font-extrabold text-gray-600 mb-1">الماركة (البراند)</label>
+                  <label className="block text-xs font-extrabold text-gray-600 mb-1">
+                    الماركة (البراند)
+                  </label>
                   <input
                     type="text"
                     required
@@ -3131,7 +4006,7 @@ ${itemsBrief}
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-[#00bf63]/40 text-right"
                   />
                   <datalist id="brands-list">
-                    {[...new Set(products.map(p => p.brand))].map((name) => (
+                    {[...new Set(products.map((p) => p.brand))].map((name) => (
                       <option key={name} value={name} />
                     ))}
                   </datalist>
@@ -3139,7 +4014,9 @@ ${itemsBrief}
               </div>
 
               <div>
-                <label className="block text-xs font-extrabold text-gray-600 mb-1">معرض صور المنتج</label>
+                <label className="block text-xs font-extrabold text-gray-600 mb-1">
+                  معرض صور المنتج
+                </label>
                 <div className="bg-gray-50/40 p-3.5 rounded-2xl border border-gray-100 space-y-3">
                   <div className="flex items-start gap-2">
                     <input
@@ -3148,11 +4025,17 @@ ${itemsBrief}
                       placeholder="رابط الصورة بقاعدة البيانات (https://...)"
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl text-xs text-left font-mono focus:ring-2 focus:ring-[#00bf63]/40"
                     />
-                <div className="flex items-center gap-2 mt-2">
-                      <span className="text-[10px] text-gray-400 font-bold whitespace-nowrap">أو ارفع من جهازك:</span>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="text-[10px] text-gray-400 font-bold whitespace-nowrap">
+                        أو ارفع من جهازك:
+                      </span>
                       <label className="flex-1 py-2 px-3 bg-green-50 hover:bg-green-100 text-[#00bf63] border border-[#00bf63]/30 rounded-xl text-center text-xs font-black cursor-pointer transition-colors block">
-                        <span>{isImageUploading ? 'جاري الرفع...' : 'اختر صورة من جهازك 📁'}</span>
-                        <input 
+                        <span>
+                          {isImageUploading
+                            ? "جاري الرفع..."
+                            : "اختر صورة من جهازك 📁"}
+                        </span>
+                        <input
                           type="file"
                           accept="image/*"
                           className="hidden"
@@ -3161,12 +4044,14 @@ ${itemsBrief}
                             if (!file) return;
 
                             setIsImageUploading(true);
-                            setImageUploadError('');
+                            setImageUploadError("");
                             try {
                               const url = await uploadToCloudinary(file);
-                              setFormImages(prev => [...prev, url]);
+                              setFormImages((prev) => [...prev, url]);
                             } catch (error: any) {
-                              setImageUploadError(error?.message || 'فشل رفع الصورة');
+                              setImageUploadError(
+                                error?.message || "فشل رفع الصورة",
+                              );
                             } finally {
                               setIsImageUploading(false);
                             }
@@ -3177,10 +4062,15 @@ ${itemsBrief}
                     <button
                       type="button"
                       onClick={() => {
-                        const urlInput = document.getElementById('new-image-url') as HTMLInputElement;
+                        const urlInput = document.getElementById(
+                          "new-image-url",
+                        ) as HTMLInputElement;
                         if (urlInput && urlInput.value.trim()) {
-                          setFormImages(prev => [...prev, urlInput.value.trim()]);
-                          urlInput.value = '';
+                          setFormImages((prev) => [
+                            ...prev,
+                            urlInput.value.trim(),
+                          ]);
+                          urlInput.value = "";
                         }
                       }}
                       className="px-3 py-2 bg-blue-500 text-white rounded-lg text-xs font-bold"
@@ -3190,10 +4080,14 @@ ${itemsBrief}
                   </div>
                   <div className="space-y-2">
                     {isImageUploading && (
-                      <p className="text-[10px] text-[#00bf63] font-black">جاري رفع الصورة إلى Cloudinary...</p>
+                      <p className="text-[10px] text-[#00bf63] font-black">
+                        جاري رفع الصورة إلى Cloudinary...
+                      </p>
                     )}
                     {imageUploadError && (
-                      <p className="text-[10px] text-red-500 font-bold">{imageUploadError}</p>
+                      <p className="text-[10px] text-red-500 font-bold">
+                        {imageUploadError}
+                      </p>
                     )}
                     {formImages.length > 0 ? (
                       formImages.map((img, index) => (
@@ -3207,7 +4101,11 @@ ${itemsBrief}
                           onDragOver={(e) => e.preventDefault()}
                         >
                           <FaGripLines className="text-gray-400 cursor-grab" />
-                          <img src={img} alt={`Product image ${index + 1}`} className="w-10 h-10 rounded-md object-cover" />
+                          <img
+                            src={img}
+                            alt={`Product image ${index + 1}`}
+                            className="w-10 h-10 rounded-md object-cover"
+                          />
                           <input
                             type="text"
                             value={img}
@@ -3216,7 +4114,11 @@ ${itemsBrief}
                           />
                           <button
                             type="button"
-                            onClick={() => setFormImages(prev => prev.filter((_, i) => i !== index))}
+                            onClick={() =>
+                              setFormImages((prev) =>
+                                prev.filter((_, i) => i !== index),
+                              )
+                            }
                             className="w-6 h-6 flex items-center justify-center bg-red-100 text-red-600 rounded-md hover:bg-red-200 text-xs"
                           >
                             ✕
@@ -3224,14 +4126,18 @@ ${itemsBrief}
                         </div>
                       ))
                     ) : (
-                        <p className="text-center text-xs text-gray-400 font-bold py-4">لم يتم إضافة أي صور للمعرض بعد.</p>
+                      <p className="text-center text-xs text-gray-400 font-bold py-4">
+                        لم يتم إضافة أي صور للمعرض بعد.
+                      </p>
                     )}
                   </div>
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-extrabold text-gray-600 mb-1">المواصفات الفنية للجدول (سطر بسطر)</label>
+                <label className="block text-xs font-extrabold text-gray-600 mb-1">
+                  المواصفات الفنية للجدول (سطر بسطر)
+                </label>
                 <textarea
                   rows={2}
                   value={formSpecs}
@@ -3239,7 +4145,10 @@ ${itemsBrief}
                   placeholder="الخاصية: القيمة&#10;الحجم: ١ لتر&#10;الرائحة: ليمون معقم"
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl text-xs leading-relaxed focus:ring-2 focus:ring-[#00bf63]/40"
                 />
-                <p className="text-[10px] text-gray-400 font-semibold mt-1">اكتب الخاصية تليها نقطتين فوق بعض `:` لتظهر كجدول بخصائص المنتج الفنية.</p>
+                <p className="text-[10px] text-gray-400 font-semibold mt-1">
+                  اكتب الخاصية تليها نقطتين فوق بعض `:` لتظهر كجدول بخصائص
+                  المنتج الفنية.
+                </p>
               </div>
 
               <div className="flex gap-3 justify-end pt-4 border-t border-gray-100 flex-wrap">
@@ -3258,7 +4167,7 @@ ${itemsBrief}
                     onClick={(e) => handleProductFormSubmit(e, true)}
                     className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold cursor-pointer disabled:opacity-50"
                   >
-                    {isFormSubmitting ? 'جاري الحفظ...' : 'إضافة كمنتج جديد ➕'}
+                    {isFormSubmitting ? "جاري الحفظ..." : "إضافة كمنتج جديد ➕"}
                   </button>
                 )}
 
@@ -3267,12 +4176,14 @@ ${itemsBrief}
                   disabled={isFormSubmitting}
                   className="px-5 py-2 bg-[#00bf63] hover:bg-brand-green-dark text-white rounded-lg text-xs font-extrabold cursor-pointer disabled:opacity-50"
                 >
-                  {isFormSubmitting ? 'جاري الحفظ...' : editingProduct ? 'حفظ التغيرات 💾' : 'إضافة للمعروضات 🚀'}
+                  {isFormSubmitting
+                    ? "جاري الحفظ..."
+                    : editingProduct
+                      ? "حفظ التغيرات 💾"
+                      : "إضافة للمعروضات 🚀"}
                 </button>
               </div>
-
             </form>
-
           </div>
         </div>
       )}
@@ -3283,7 +4194,7 @@ ${itemsBrief}
           <div className="bg-white rounded-3xl w-full max-w-md p-6 border border-gray-150 shadow-2xl relative">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-4">
               <h4 className="text-lg font-black text-gray-800">
-                {editingCategory ? 'تعديل القسم' : 'إضافة قسم جديد'}
+                {editingCategory ? "تعديل القسم" : "إضافة قسم جديد"}
               </h4>
               <button
                 onClick={() => setIsCategoryModalOpen(false)}
@@ -3299,9 +4210,14 @@ ${itemsBrief}
               </div>
             )}
 
-            <form onSubmit={handleCategoryFormSubmit} className="space-y-4 text-right">
+            <form
+              onSubmit={handleCategoryFormSubmit}
+              className="space-y-4 text-right"
+            >
               <div>
-                <label className="block text-xs font-extrabold text-gray-600 mb-1">اسم القسم</label>
+                <label className="block text-xs font-extrabold text-gray-600 mb-1">
+                  اسم القسم
+                </label>
                 <input
                   type="text"
                   required
@@ -3312,7 +4228,9 @@ ${itemsBrief}
                 />
               </div>
               <div>
-                <label className="block text-xs font-extrabold text-gray-600 mb-1">صورة القسم</label>
+                <label className="block text-xs font-extrabold text-gray-600 mb-1">
+                  صورة القسم
+                </label>
                 <input
                   type="file"
                   accept="image/*"
@@ -3324,14 +4242,20 @@ ${itemsBrief}
                       const url = await uploadToCloudinary(file);
                       setFormCategoryImage(url);
                     } catch (error) {
-                      setCategoryFormError('فشل رفع الصورة.');
+                      setCategoryFormError("فشل رفع الصورة.");
                     } finally {
                       setIsCategoryUploading(false);
                     }
                   }}
                   className="w-full text-xs file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100"
                 />
-                {formCategoryImage && <img src={formCategoryImage} alt="Preview" className="mt-2 w-20 h-20 rounded-lg object-cover border" />}
+                {formCategoryImage && (
+                  <img
+                    src={formCategoryImage}
+                    alt="Preview"
+                    className="mt-2 w-20 h-20 rounded-lg object-cover border"
+                  />
+                )}
               </div>
               <div className="flex justify-end pt-4 border-t border-gray-100">
                 <button
@@ -3339,7 +4263,11 @@ ${itemsBrief}
                   disabled={isCategoryUploading}
                   className="px-5 py-2.5 bg-[#00bf63] hover:bg-brand-green-dark text-white rounded-lg text-xs font-extrabold cursor-pointer disabled:opacity-50"
                 >
-                  {isCategoryUploading ? 'جاري الرفع...' : editingCategory ? 'حفظ التعديلات' : 'إضافة القسم'}
+                  {isCategoryUploading
+                    ? "جاري الرفع..."
+                    : editingCategory
+                      ? "حفظ التعديلات"
+                      : "إضافة القسم"}
                 </button>
               </div>
             </form>
@@ -3351,10 +4279,9 @@ ${itemsBrief}
       {isDeleteModalOpen && deletingProduct && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden text-right">
-            
             {/* Modal Header */}
             <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-gray-50">
-              <button 
+              <button
                 type="button"
                 onClick={() => setIsDeleteModalOpen(false)}
                 className="text-gray-400 hover:text-gray-700 bg-white h-8 w-8 rounded-full border border-gray-150 flex items-center justify-center text-xs transition-colors cursor-pointer"
@@ -3369,20 +4296,27 @@ ${itemsBrief}
 
             {/* Modal Content */}
             <form onSubmit={executeDeleteOrReduction} className="p-6 space-y-4">
-              
               {/* Product Info Card Preview */}
               <div className="flex items-center gap-3.5 bg-gray-50/50 p-3.5 rounded-2xl border border-gray-150">
-                <img 
-                  src={deletingProduct.image} 
-                  alt={deletingProduct.title} 
+                <img
+                  src={deletingProduct.image}
+                  alt={deletingProduct.title}
                   className="w-14 h-14 rounded-xl object-cover border border-gray-200 shadow-sm"
                   referrerPolicy="no-referrer"
                 />
                 <div className="flex-1 min-w-0">
-                  <span className="text-gray-400 text-[10px] font-bold block">{deletingProduct.brand}</span>
-                  <p className="text-xs font-black text-gray-800 truncate">{deletingProduct.title}</p>
+                  <span className="text-gray-400 text-[10px] font-bold block">
+                    {deletingProduct.brand}
+                  </span>
+                  <p className="text-xs font-black text-gray-800 truncate">
+                    {deletingProduct.title}
+                  </p>
                   <p className="text-[11px] text-[#00bf63] font-extrabold mt-1">
-                    الكمية المتاحة حالياً بالمخزن: {deletingProduct.stock !== undefined ? deletingProduct.stock : 100} قطعة
+                    الكمية المتاحة حالياً بالمخزن:{" "}
+                    {deletingProduct.stock !== undefined
+                      ? deletingProduct.stock
+                      : 100}{" "}
+                    قطعة
                   </p>
                 </div>
               </div>
@@ -3391,38 +4325,50 @@ ${itemsBrief}
               <div className="grid grid-cols-2 gap-3 pt-1">
                 <button
                   type="button"
-                  onClick={() => { setDeleteType('reduce'); setDeleteError(''); }}
+                  onClick={() => {
+                    setDeleteType("reduce");
+                    setDeleteError("");
+                  }}
                   className={`p-3.5 rounded-2xl border text-center flex flex-col items-center gap-1.5 cursor-pointer transition-all ${
-                    deleteType === 'reduce' 
-                      ? 'border-[#00bf63] bg-green-50/30 text-gray-800 ring-2 ring-[#00bf63]/20' 
-                      : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'
+                    deleteType === "reduce"
+                      ? "border-[#00bf63] bg-green-50/30 text-gray-800 ring-2 ring-[#00bf63]/20"
+                      : "border-gray-200 bg-white text-gray-500 hover:bg-gray-50"
                   }`}
                 >
                   <span className="text-base">📉</span>
                   <span className="text-xs font-black">سحب كمية محددة</span>
-                  <span className="text-[9px] text-gray-400 font-bold">إنقاص من مخزون المنتج</span>
+                  <span className="text-[9px] text-gray-400 font-bold">
+                    إنقاص من مخزون المنتج
+                  </span>
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => { setDeleteType('full'); setDeleteError(''); }}
+                  onClick={() => {
+                    setDeleteType("full");
+                    setDeleteError("");
+                  }}
                   className={`p-3.5 rounded-2xl border text-center flex flex-col items-center gap-1.5 cursor-pointer transition-all ${
-                    deleteType === 'full' 
-                      ? 'border-red-500 bg-red-50/30 text-red-650 ring-2 ring-red-500/20' 
-                      : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'
+                    deleteType === "full"
+                      ? "border-red-500 bg-red-50/30 text-red-650 ring-2 ring-red-500/20"
+                      : "border-gray-200 bg-white text-gray-500 hover:bg-gray-50"
                   }`}
                 >
                   <span className="text-base">🗑️</span>
                   <span className="text-xs font-black">حذف المنتج بالكامل</span>
-                  <span className="text-[9px] text-gray-400 font-bold">مسحه تماماً من المتجر</span>
+                  <span className="text-[9px] text-gray-400 font-bold">
+                    مسحه تماماً من المتجر
+                  </span>
                 </button>
               </div>
 
               {/* Condition Options Rendering */}
-              {deleteType === 'reduce' ? (
+              {deleteType === "reduce" ? (
                 <div className="space-y-3 bg-green-50/20 p-4 rounded-2xl border border-green-150/40">
-                  <label className="block text-xs font-extrabold text-gray-700">الكمية المراد سحبها/حذفها من المخزون:</label>
-                  
+                  <label className="block text-xs font-extrabold text-gray-700">
+                    الكمية المراد سحبها/حذفها من المخزون:
+                  </label>
+
                   <div className="flex items-center gap-3 justify-center">
                     <button
                       type="button"
@@ -3434,12 +4380,16 @@ ${itemsBrief}
                     >
                       -
                     </button>
-                    
+
                     <input
                       type="number"
                       required
                       min={1}
-                      max={deletingProduct.stock !== undefined ? deletingProduct.stock : 100}
+                      max={
+                        deletingProduct.stock !== undefined
+                          ? deletingProduct.stock
+                          : 100
+                      }
                       value={reduceAmount}
                       onChange={(e) => setReduceAmount(e.target.value)}
                       className="w-24 text-center px-4 py-2 border border-gray-200 rounded-xl font-bold text-sm bg-white"
@@ -3449,8 +4399,12 @@ ${itemsBrief}
                       type="button"
                       onClick={() => {
                         const current = Number(reduceAmount) || 1;
-                        const maxStock = deletingProduct.stock !== undefined ? deletingProduct.stock : 100;
-                        if (current < maxStock) setReduceAmount(String(current + 1));
+                        const maxStock =
+                          deletingProduct.stock !== undefined
+                            ? deletingProduct.stock
+                            : 100;
+                        if (current < maxStock)
+                          setReduceAmount(String(current + 1));
                       }}
                       className="w-10 h-10 select-none flex items-center justify-center bg-white border border-gray-200 hover:bg-gray-50 text-gray-800 font-bold rounded-xl cursor-pointer shadow-sm"
                     >
@@ -3460,9 +4414,15 @@ ${itemsBrief}
 
                   {/* Dynamic calculation result */}
                   <p className="text-[10px] text-center text-gray-500 font-semibold mt-1">
-                    الكمية المتبقية بعد الحذف ستكون:{' '}
+                    الكمية المتبقية بعد الحذف ستكون:{" "}
                     <span className="font-extrabold text-gray-800 text-xs">
-                      {Math.max(0, (deletingProduct.stock !== undefined ? deletingProduct.stock : 100) - (Number(reduceAmount) || 0))} قطعة
+                      {Math.max(
+                        0,
+                        (deletingProduct.stock !== undefined
+                          ? deletingProduct.stock
+                          : 100) - (Number(reduceAmount) || 0),
+                      )}{" "}
+                      قطعة
                     </span>
                   </p>
                 </div>
@@ -3471,9 +4431,13 @@ ${itemsBrief}
                   <div className="flex gap-2 text-red-700">
                     <span className="text-base select-none">⚠️</span>
                     <div className="flex-1">
-                      <h4 className="text-xs font-black text-red-700">تحذير الحذف النهائي!</h4>
+                      <h4 className="text-xs font-black text-red-700">
+                        تحذير الحذف النهائي!
+                      </h4>
                       <p className="text-[10px] text-red-600 font-semibold mt-0.5 leading-relaxed">
-                        سيتم مسح المنتج ومواصفاته وصوره نهائياً وبشكل كامل من متجرك الإلكتروني وقاعدة البيانات. لن يستطيع أي عميل طلبه بعد الآن.
+                        سيتم مسح المنتج ومواصفاته وصوره نهائياً وبشكل كامل من
+                        متجرك الإلكتروني وقاعدة البيانات. لن يستطيع أي عميل طلبه
+                        بعد الآن.
                       </p>
                     </div>
                   </div>
@@ -3486,7 +4450,8 @@ ${itemsBrief}
                       className="rounded border-gray-300 text-red-600 focus:ring-red-500 h-4 w-4"
                     />
                     <span className="text-[11px] font-black text-gray-700">
-                      أنا أوافق وأؤكد رغبتي في مسح هذا المنتج بالكامل من المتجر 🗑️
+                      أنا أوافق وأؤكد رغبتي في مسح هذا المنتج بالكامل من المتجر
+                      🗑️
                     </span>
                   </label>
                 </div>
@@ -3510,23 +4475,24 @@ ${itemsBrief}
                 </button>
                 <button
                   type="submit"
-                  disabled={isDeleteSubmitting || (deleteType === 'full' && !fullConfirmChecked)}
+                  disabled={
+                    isDeleteSubmitting ||
+                    (deleteType === "full" && !fullConfirmChecked)
+                  }
                   className={`px-5 py-2.5 rounded-xl text-xs font-extrabold cursor-pointer disabled:opacity-50 text-white transition-colors ${
-                    deleteType === 'full' 
-                      ? 'bg-red-600 hover:bg-red-700 shadow-sm' 
-                      : 'bg-[#00bf63] hover:bg-brand-green-dark shadow-sm'
+                    deleteType === "full"
+                      ? "bg-red-600 hover:bg-red-700 shadow-sm"
+                      : "bg-[#00bf63] hover:bg-brand-green-dark shadow-sm"
                   }`}
                 >
-                  {isDeleteSubmitting 
-                    ? 'جاري الإرسال...' 
-                    : deleteType === 'reduce' 
-                      ? 'تأكيد الخصم من المخزون 📉' 
-                      : 'حذف المنتج نهائياً 🗑️'}
+                  {isDeleteSubmitting
+                    ? "جاري الإرسال..."
+                    : deleteType === "reduce"
+                      ? "تأكيد الخصم من المخزون 📉"
+                      : "حذف المنتج نهائياً 🗑️"}
                 </button>
               </div>
-
             </form>
-
           </div>
         </div>
       )}
@@ -3535,15 +4501,18 @@ ${itemsBrief}
       {isOrderDetailsModalOpen && selectedDetailedOrder && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 z-50 overflow-y-auto">
           <div className="bg-white rounded-3xl w-full max-w-2xl p-6 border border-gray-150 shadow-2xl relative max-h-[90vh] overflow-y-auto scrollbar-thin text-right">
-            
             <div className="flex items-center justify-between border-b border-gray-100 pb-3.5 mb-4">
               <div className="flex items-center gap-2.5">
-                <span className="w-9 h-9 bg-purple-50 text-purple-600 flex items-center justify-center rounded-xl text-sm font-black">📋</span>
+                <span className="w-9 h-9 bg-purple-50 text-purple-600 flex items-center justify-center rounded-xl text-sm font-black">
+                  📋
+                </span>
                 <div>
                   <h4 className="text-base sm:text-lg font-black text-gray-800">
                     تفاصيل الفاتورة والطلب: #{selectedDetailedOrder.orderId}
                   </h4>
-                  <span className="text-[10px] text-gray-400 font-bold block mt-0.5">التاريخ والوقت: {selectedDetailedOrder.date}</span>
+                  <span className="text-[10px] text-gray-400 font-bold block mt-0.5">
+                    التاريخ والوقت: {selectedDetailedOrder.date}
+                  </span>
                 </div>
               </div>
               <button
@@ -3560,15 +4529,26 @@ ${itemsBrief}
             {/* General Info Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5 text-right">
               <div className="bg-gray-50/60 p-4 rounded-2xl border border-gray-200/50 space-y-2">
-                <span className="text-xs font-black text-[#5108b5] border-b border-[#5108b5]/10 pb-1.5 block">👤 معلومات المستلم والعميل</span>
+                <span className="text-xs font-black text-[#5108b5] border-b border-[#5108b5]/10 pb-1.5 block">
+                  👤 معلومات المستلم والعميل
+                </span>
                 <div className="text-xs space-y-1.5 font-extrabold text-gray-750">
                   <div className="flex justify-between">
-                    <span className="text-gray-400 font-bold">الاسم واللقب:</span>
-                    <span className="text-gray-800">{selectedDetailedOrder.customerInfo.name}</span>
+                    <span className="text-gray-400 font-bold">
+                      الاسم واللقب:
+                    </span>
+                    <span className="text-gray-800">
+                      {selectedDetailedOrder.customerInfo.name}
+                    </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-400 font-bold">رقم الهاتف الشغال:</span>
-                    <a href={`tel:${selectedDetailedOrder.customerInfo.phone}`} className="text-blue-600 hover:underline tracking-widest leading-none">
+                    <span className="text-gray-400 font-bold">
+                      رقم الهاتف الشغال:
+                    </span>
+                    <a
+                      href={`tel:${selectedDetailedOrder.customerInfo.phone}`}
+                      className="text-blue-600 hover:underline tracking-widest leading-none"
+                    >
                       {selectedDetailedOrder.customerInfo.phone} 📞
                     </a>
                   </div>
@@ -3576,19 +4556,33 @@ ${itemsBrief}
               </div>
 
               <div className="bg-gray-50/60 p-4 rounded-2xl border border-gray-200/50 space-y-2 text-right">
-                <span className="text-xs font-black text-[#5108b5] border-b border-[#5108b5]/10 pb-1.5 block">📍 جهة الشحن والتوصيل</span>
+                <span className="text-xs font-black text-[#5108b5] border-b border-[#5108b5]/10 pb-1.5 block">
+                  📍 جهة الشحن والتوصيل
+                </span>
                 <div className="text-xs space-y-1.5 font-extrabold text-gray-750">
                   <div className="flex justify-between">
-                    <span className="text-gray-400 font-bold">المنطقة (الإسماعيلية):</span>
-                    <span className="text-gray-800">{selectedDetailedOrder.customerInfo.governorate}</span>
+                    <span className="text-gray-400 font-bold">
+                      المنطقة (الإسماعيلية):
+                    </span>
+                    <span className="text-gray-800">
+                      {selectedDetailedOrder.customerInfo.governorate}
+                    </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-400 font-bold">المحل / النشاط التجاري:</span>
-                    <span className="text-gray-800">{selectedDetailedOrder.customerInfo.city || 'طلب شخصي'}</span>
+                    <span className="text-gray-400 font-bold">
+                      المحل / النشاط التجاري:
+                    </span>
+                    <span className="text-gray-800">
+                      {selectedDetailedOrder.customerInfo.city || "طلب شخصي"}
+                    </span>
                   </div>
                   <div className="block pt-1 border-t border-gray-100/50">
-                    <span className="text-gray-400 font-bold block mb-0.5 text-[10px]">العنوان بالكامل:</span>
-                    <p className="text-[11px] leading-relaxed font-semibold text-gray-600">{selectedDetailedOrder.customerInfo.address}</p>
+                    <span className="text-gray-400 font-bold block mb-0.5 text-[10px]">
+                      العنوان بالكامل:
+                    </span>
+                    <p className="text-[11px] leading-relaxed font-semibold text-gray-600">
+                      {selectedDetailedOrder.customerInfo.address}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -3601,25 +4595,34 @@ ${itemsBrief}
               </div>
               <div className="divide-y divide-gray-100 max-h-60 overflow-y-auto">
                 {selectedDetailedOrder.items.map((item, idx) => {
-                  const price = item.product.discountPrice || item.product.price;
+                  const price =
+                    item.product.discountPrice || item.product.price;
                   return (
-                    <div key={idx} className="p-3.5 flex items-center justify-between text-xs font-extrabold text-gray-700 hover:bg-gray-50/50">
+                    <div
+                      key={idx}
+                      className="p-3.5 flex items-center justify-between text-xs font-extrabold text-gray-700 hover:bg-gray-50/50"
+                    >
                       <div className="flex items-center gap-3">
-                        <img 
-                          src={item.product.image} 
-                          alt={item.product.title} 
+                        <img
+                          src={item.product.image}
+                          alt={item.product.title}
                           className="w-10 h-10 rounded-xl object-cover border border-gray-200 bg-white"
                           referrerPolicy="no-referrer"
                         />
                         <div className="flex flex-col text-right">
-                          <span className="text-gray-800 font-black line-clamp-1">{item.product.title}</span>
+                          <span className="text-gray-800 font-black line-clamp-1">
+                            {item.product.title}
+                          </span>
                           <span className="text-[10px] text-gray-400 mt-1 font-semibold">
                             الماركة: {item.product.brand} | السعر: {price} ج.م
                           </span>
                         </div>
                       </div>
                       <span className="text-gray-900 font-black shrink-0 text-left">
-                        {item.quantity} × {price} = <strong className="text-[#00bf63] font-serif">{item.quantity * price} ج.م</strong>
+                        {item.quantity} × {price} ={" "}
+                        <strong className="text-[#00bf63] font-serif">
+                          {item.quantity * price} ج.م
+                        </strong>
                       </span>
                     </div>
                   );
@@ -3631,17 +4634,23 @@ ${itemsBrief}
             <div className="bg-[#FAF9FF] border border-purple-100 rounded-2xl p-4 mb-6 space-y-2 text-xs font-bold text-gray-600">
               <div className="flex justify-between">
                 <span>ثمن إجمالي المنتجات والسلع:</span>
-                <span className="font-extrabold text-gray-800">{selectedDetailedOrder.subtotal} ج.م</span>
+                <span className="font-extrabold text-gray-800">
+                  {selectedDetailedOrder.subtotal} ج.م
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>تكلفة الشحن والدليفري:</span>
                 <span className="font-extrabold text-gray-800">
-                  {selectedDetailedOrder.shipping === 0 ? 'مجانى شحن مجاني' : `${selectedDetailedOrder.shipping} ج.م`}
+                  {selectedDetailedOrder.shipping === 0
+                    ? "مجانى شحن مجاني"
+                    : `${selectedDetailedOrder.shipping} ج.م`}
                 </span>
               </div>
               <div className="flex justify-between pt-2.5 border-t border-gray-200 text-sm font-black text-[#5108b5]">
                 <span>المبلغ المطلوب تسليمه كاش:</span>
-                <span className="text-base font-black font-serif">{selectedDetailedOrder.total} ج.م</span>
+                <span className="text-base font-black font-serif">
+                  {selectedDetailedOrder.total} ج.م
+                </span>
               </div>
             </div>
 
@@ -3685,11 +4694,9 @@ ${itemsBrief}
                 إغلاق النافذة
               </button>
             </div>
-
           </div>
         </div>
       )}
-
     </div>
   );
 }

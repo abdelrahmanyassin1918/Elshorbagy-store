@@ -117,7 +117,7 @@ export async function getBannerData(): Promise<BannerData | null> {
     }
     return null;
   } catch (error) {
-    console.error("Error fetching banner data:", error);
+    console.warn("Notice: Firestore banner fetch fallback (offline/doc missing):", error);
     return null;
   }
 }
@@ -250,7 +250,7 @@ export async function getAllCategories(): Promise<Category[]> {
         }) as Category,
     );
   } catch (error) {
-    console.error("Error fetching categories:", error);
+    console.warn("Notice: Firestore categories fetch fallback:", error);
     return [];
   }
 }
@@ -262,8 +262,19 @@ export async function addCategory(
   category: Omit<Category, "id">,
 ): Promise<string> {
   try {
-    const docRef = await addDoc(collection(db, "categories"), category);
-    return docRef.id;
+    const id = category.name
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "_")
+      .replace(/[^\w]/g, "");
+
+    await setDoc(doc(db, "categories", id), {
+      id,
+      name: category.name,
+      image: category.image || "",
+    });
+
+    return id;
   } catch (error) {
     console.error("Error adding category:", error);
     throw error;
@@ -316,7 +327,7 @@ export async function getAllProducts(): Promise<Product[]> {
         }) as Product,
     );
   } catch (error) {
-    console.error("Error fetching products:", error);
+    console.warn("Notice: Firestore products fetch fallback:", error);
     return [];
   }
 }

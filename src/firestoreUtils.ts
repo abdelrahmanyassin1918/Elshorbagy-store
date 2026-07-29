@@ -242,6 +242,8 @@ export async function getAllCategories(): Promise<Category[]> {
   try {
     const q = query(collection(db, "categories"), orderBy("name"));
     const querySnapshot = await getDocs(q);
+    console.log("Firestore categories:", querySnapshot.docs.length);
+
     return querySnapshot.docs.map(
       (doc) =>
         ({
@@ -262,19 +264,12 @@ export async function addCategory(
   category: Omit<Category, "id">,
 ): Promise<string> {
   try {
-    const id = category.name
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, "_")
-      .replace(/[^\w]/g, "");
-
-    await setDoc(doc(db, "categories", id), {
-      id,
+    const docRef = await addDoc(collection(db, "categories"), {
       name: category.name,
       image: category.image || "",
     });
 
-    return id;
+    return docRef.id;
   } catch (error) {
     console.error("Error adding category:", error);
     throw error;

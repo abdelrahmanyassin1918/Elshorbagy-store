@@ -15,7 +15,8 @@ export interface Product {
   discountPercentage?: number;
   image: string;
   images: string[];
-  category: string;
+  categoryId: string;
+  categoryName: string;
   brand: string;
   rating: number;
   reviewsCount: number;

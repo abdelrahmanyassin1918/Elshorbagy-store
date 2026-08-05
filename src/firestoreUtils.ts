@@ -39,7 +39,8 @@ export interface Product {
   discountPercentage?: number;
   image: string;
   images: string[];
-  category: string;
+  categoryId: string;
+  categoryName: string;
   brand: string;
   rating: number;
   reviewsCount: number;
@@ -349,14 +350,16 @@ export async function getProductById(
  * Get products by category
  */
 export async function getProductsByCategory(
-  category: string,
+  categoryId: string,
 ): Promise<Product[]> {
   try {
     const q = query(
       collection(db, "products"),
-      where("category", "==", category),
+      where("categoryId", "==", categoryId),
     );
+
     const querySnapshot = await getDocs(q);
+
     return querySnapshot.docs.map(
       (doc) =>
         ({
@@ -365,7 +368,7 @@ export async function getProductsByCategory(
         }) as Product,
     );
   } catch (error) {
-    console.error("Error fetching products by category:", error);
+    console.error(error);
     return [];
   }
 }

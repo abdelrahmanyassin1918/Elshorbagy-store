@@ -33,7 +33,8 @@ export interface Product {
   stock?: number; // Remaining stock count in warehouse
   image: string;
   images: string[];
-  category: string;
+  categoryId: string;
+  categoryName: string;
   brand: string;
   brandLogo?: string;
   company?: string; // Manufacturing company

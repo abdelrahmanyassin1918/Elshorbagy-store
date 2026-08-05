@@ -851,8 +851,7 @@ ${itemsBrief}
     setFormBarcode(product.barcode || "");
     setFormStock(String(product.stock !== undefined ? product.stock : 100));
     setFormDate(product.addedDate || new Date().toISOString().split("T")[0]);
-    setFormCategory(product.category);
-    setFormBrand(product.brand);
+setFormCategory(product.categoryId);    setFormBrand(product.brand);
     setFormCompany(product.company || "");
     setFormImages(product.images || [product.image]);
     setImageUploadError("");
@@ -961,8 +960,7 @@ ${itemsBrief}
       setFormDate(
         productWithBarcode.addedDate || new Date().toISOString().split("T")[0],
       );
-      setFormCategory(productWithBarcode.category);
-      setFormBrand(productWithBarcode.brand);
+setFormCategory(productWithBarcode.categoryId);      setFormBrand(productWithBarcode.brand);
       setFormCompany(productWithBarcode.company || "");
       setFormImages(productWithBarcode.images || [productWithBarcode.image]);
       setImageUploadError("");
@@ -1033,6 +1031,15 @@ ${itemsBrief}
       formImages.length > 0
         ? formImages[0]
         : "https://images.unsplash.com/photo-1628177142898-93e36e4e3a50?auto=format&fit=crop&q=80&w=800";
+
+        const selectedCategory = categories.find(
+          (cat) => cat.name === formCategory,
+        );
+
+        if (!selectedCategory) {
+          alert("الرجاء اختيار قسم صحيح");
+          return;
+        }
     const bodyPayload = {
       title: formTitle.trim(),
       description: formDescription.trim(),
@@ -1042,7 +1049,8 @@ ${itemsBrief}
       barcode: formBarcode.trim() || null, // إذا كان الباركود فارغاً، سيكون null
       stock: Number(formStock),
       addedDate: formDate || new Date().toISOString().split("T")[0],
-      category: formCategory.trim(),
+      categoryId: selectedCategory.id,
+      categoryName: selectedCategory.name,
       brand: formBrand.trim(),
       company: formCompany.trim(),
       image: formImages[0] || imageUrl,
@@ -3984,7 +3992,7 @@ ${itemsBrief}
                       <option value="">اختر القسم...</option>
 
                       {categories.map((cat) => (
-                        <option key={cat.id} value={cat.name}>
+                        <option key={cat.id} value={cat.id}>
                           {cat.name}
                         </option>
                       ))}

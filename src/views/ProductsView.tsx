@@ -82,30 +82,45 @@ export default function ProductsView({
       const q = searchQuery.toLowerCase().trim();
       result = result.filter(
         (p) =>
-          p.title.toLowerCase().includes(q) ||
-          p.description.toLowerCase().includes(q) ||
-          p.brand.toLowerCase().includes(q) ||
-          p.category.toLowerCase().includes(q)
+          (p.title || "").toLowerCase().includes(q) ||
+          (p.description || "").toLowerCase().includes(q) ||
+          (p.brand || "").toLowerCase().includes(q) ||
+          (p.categoryName || p.category || p.categoryId || "")
+            .toLowerCase()
+            .includes(q),
       );
     }
 
     // Category filter
     if (selectedCategory) {
       result = result.filter((p) => {
-        const catObj = (categories || []).find(c => c.id === selectedCategory || c.name === selectedCategory);
+        const catObj = (categories || []).find(
+          (c) => c.id === selectedCategory || c.name === selectedCategory,
+        );
         if (catObj) {
-          return p.category.toLowerCase() === catObj.id.toLowerCase() || p.category.toLowerCase() === catObj.name.toLowerCase();
+          return (
+            (p.categoryId || "").toLowerCase() === catObj.id.toLowerCase() ||
+            (p.categoryName || "").toLowerCase() === catObj.name.toLowerCase()
+          );
         }
-        return p.category.toLowerCase() === selectedCategory.toLowerCase();
+        return (
+          (p.categoryId || p.category || "").toLowerCase() ===
+          selectedCategory.toLowerCase()
+        );
       });
     }
 
     // Brand filter
     if (selectedBrand) {
       result = result.filter((p) => {
-        const brandObj = dynamicBrands.find(b => b.id === selectedBrand || b.name === selectedBrand);
+        const brandObj = dynamicBrands.find(
+          (b) => b.id === selectedBrand || b.name === selectedBrand,
+        );
         if (brandObj) {
-          return p.brand.toLowerCase() === brandObj.id.toLowerCase() || p.brand.toLowerCase() === brandObj.name.toLowerCase();
+          return (
+            p.brand.toLowerCase() === brandObj.id.toLowerCase() ||
+            p.brand.toLowerCase() === brandObj.name.toLowerCase()
+          );
         }
         return p.brand.toLowerCase() === selectedBrand.toLowerCase();
       });
@@ -123,11 +138,15 @@ export default function ProductsView({
     });
 
     // Sorting block
-    if (sortBy === 'price-asc') {
-      result.sort((a, b) => (a.discountPrice || a.price) - (b.discountPrice || b.price));
-    } else if (sortBy === 'price-desc') {
-      result.sort((a, b) => (b.discountPrice || b.price) - (a.discountPrice || a.price));
-    } else if (sortBy === 'ratings') {
+    if (sortBy === "price-asc") {
+      result.sort(
+        (a, b) => (a.discountPrice || a.price) - (b.discountPrice || b.price),
+      );
+    } else if (sortBy === "price-desc") {
+      result.sort(
+        (a, b) => (b.discountPrice || b.price) - (a.discountPrice || a.price),
+      );
+    } else if (sortBy === "ratings") {
       result.sort((a, b) => b.rating - a.rating);
     } else {
       // 'featured'
@@ -135,7 +154,17 @@ export default function ProductsView({
     }
 
     return result;
-  }, [selectedCategory, selectedBrand, searchQuery, isSpecialOffer, maxPrice, sortBy]);
+  }, [
+    activeProducts,
+    categories,
+    dynamicBrands,
+    selectedCategory,
+    selectedBrand,
+    searchQuery,
+    isSpecialOffer,
+    maxPrice,
+    sortBy,
+  ]);
 
   return (
     <div className="pb-20 md:pb-12 bg-white min-h-[600px]">

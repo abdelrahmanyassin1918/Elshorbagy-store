@@ -172,7 +172,7 @@ export default function App() {
   }>({});
 
   // Dynamic state loaded from Express Backend / Firestore / Default Data
-  const [dynamicProducts, setDynamicProducts] = useState<Product[]>(PRODUCTS);
+const [dynamicProducts, setDynamicProducts] = useState<Product[]>([]);
   const [dynamicBanner, setDynamicBanner] = useState({
     badge: '🧼 النظافة والبريق في جيبك • أسعار جملة الجملة',
     title: 'الشوربجي للمنظفات\nوالورقيات في مصر',
@@ -181,31 +181,32 @@ export default function App() {
     isClosed: false,
   });
   const [orders, setOrders] = useState<OrderDetails[]>([]);
-  const [categories, setCategories] = useState<Category[]>(CATEGORIES);
-
+const [categories, setCategories] = useState<Category[]>([]);
   // Hydration utility
   const refreshLiveState = async () => {
-    try {
-      const firestoreProducts = await getFirestoreProducts();
-      if (firestoreProducts && firestoreProducts.length > 0) {
-        const normalizedProducts = firestoreProducts.map((product: any) => ({
-          ...product,
-          stock: product.stock !== undefined ? product.stock : 100,
-          images: product.images || [product.image],
-          specs: product.specs || {},
-        })) as Product[];
+   try {
+     const firestoreProducts = await getFirestoreProducts();
 
-        setDynamicProducts(normalizedProducts);
+     const normalizedProducts = (firestoreProducts || []).map(
+       (product: any) => ({
+         ...product,
+         stock: product.stock !== undefined ? product.stock : 100,
+         images: product.images || [product.image],
+         specs: product.specs || {},
+       }),
+     ) as Product[];
 
-        if (activeProduct) {
-          const synced = normalizedProducts.find((p: Product) => p.id === activeProduct.id);
-          if (synced) setActiveProduct(synced);
-        }
-      }
-    } catch (e) {
-      console.warn('Using fallback local products:', e);
-    }
+     setDynamicProducts(normalizedProducts);
 
+     if (activeProduct) {
+       const synced = normalizedProducts.find(
+         (p: Product) => p.id === activeProduct.id,
+       );
+       if (synced) setActiveProduct(synced);
+     }
+   } catch (e) {
+     console.warn("Using fallback local products:", e);
+   }
     try {
       const firestoreOrders = await getFirestoreOrders();
       if (firestoreOrders && firestoreOrders.length > 0) {
@@ -244,11 +245,9 @@ export default function App() {
 
     try {
       const firestoreCategories = await getFirestoreCategories();
-      if (firestoreCategories && firestoreCategories.length > 0) {
-        setCategories(firestoreCategories);
-      }
+      setCategories(firestoreCategories || []);
     } catch (e) {
-      console.warn('Using fallback local categories:', e);
+      console.warn("Using fallback local categories:", e);
     }
   };
 

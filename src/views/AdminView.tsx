@@ -1032,9 +1032,7 @@ setFormCategory(productWithBarcode.categoryId);      setFormBrand(productWithBar
         ? formImages[0]
         : "https://images.unsplash.com/photo-1628177142898-93e36e4e3a50?auto=format&fit=crop&q=80&w=800";
 
-        const selectedCategory = categories.find(
-          (cat) => cat.name === formCategory,
-        );
+  const selectedCategory = categories.find((cat) => cat.id === formCategory);
 
         if (!selectedCategory) {
           alert("الرجاء اختيار قسم صحيح");

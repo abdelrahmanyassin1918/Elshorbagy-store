@@ -401,25 +401,32 @@ const [categories, setCategories] = useState<Category[]>([]);
         orderId: orderDetails.orderId,
         items: orderDetails.items.map((item) => ({
           ...item,
-          product: item.product ? {
-            id: item.product.id,
-            title: item.product.title,
-            price: item.product.price,
-            discountPrice: item.product.discountPrice,
-            image: item.product.image,
-            brand: item.product.brand,
-            category: item.product.category,
-            stock: item.product.stock,
-          } : undefined,
+          product: item.product
+            ? {
+                id: item.product.id,
+                title: item.product.title,
+                price: item.product.price,
+                image: item.product.image,
+                brand: item.product.brand,
+                categoryId: item.product.categoryId,
+                categoryName: item.product.categoryName,
+                ...(item.product.discountPrice != null && {
+                  discountPrice: item.product.discountPrice,
+                }),
+                ...(item.product.stock != null && {
+                  stock: item.product.stock,
+                }),
+              }
+            : null,
         })),
         customerInfo: orderDetails.customerInfo,
         subtotal: orderDetails.subtotal,
         shipping: orderDetails.shipping,
         total: orderDetails.total,
         date: orderDetails.date,
-        status: 'pending' as const,
+        status: "pending" as const,
       };
-
+console.log(JSON.stringify(normalizedOrder, null, 2));
       const savedOrderId = await createFirestoreOrder(normalizedOrder as any, 'guest');
 
       for (const item of orderDetails.items) {
